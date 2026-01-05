@@ -1,4 +1,4 @@
 
 flask==3.0.3
-supabase-py==2.4.0
+supabase
 python-dotenv==1.0.1

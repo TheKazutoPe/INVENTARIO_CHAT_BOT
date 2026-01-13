@@ -1,162 +1,246 @@
-{% extends "base.html" %}
-{% block title %}Materiales Avería #{{ bitacora.codigo_bd }}{% endblock %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Reg. Materiales</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; }
+        .header-card { background: white; border-bottom: 1px solid #E2E8F0; padding-bottom: 1rem; }
+        .sticky-tools { position: sticky; top: 0; z-index: 40; background: rgba(248, 250, 252, 0.95); backdrop-filter: blur(8px); padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .card-material { background: white; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #E2E8F0; transition: transform 0.1s; }
+        .card-material:active { transform: scale(0.98); background: #F1F5F9; }
+        .search-input { border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        .search-input:focus { border-color: #3B82F6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+        .new-item { animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    </style>
+</head>
+<body class="pb-24">
 
-{% block extra_head %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-{% endblock %}
+    <div class="header-card px-4 pt-4 shadow-sm">
+        <div class="max-w-md mx-auto">
+            <div class="flex justify-between items-center mb-3">
+                <div class="flex gap-2">
+                    {% if b.is_cerrada %}
+                        <span class="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded border border-green-200">CERRADO</span>
+                    {% else %}
+                        <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-200">EN CURSO</span>
+                    {% endif %}
+                    <span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200">Ref: {{ bid }}</span>
+                </div>
+                <div class="text-[10px] font-bold text-slate-400 flex items-center gap-1"><i class="fa-regular fa-calendar"></i> {{ b.fecha_asignacion_bd|truncate(10, True, '') }}</div>
+            </div>
 
-{% block navbar_right %}
-<span class="badge bg-dark rounded-pill">#{{ bitacora.codigo_bd }}</span>
-{% endblock %}
+            <div class="mb-4">
+                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Incidencia / Código BD</div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <h1 class="text-2xl font-black text-slate-800 leading-none">{{ b.nroincidencia_bd or 'S/N' }}</h1>
+                    <span class="bg-slate-800 text-white px-2 py-1 rounded text-xs font-bold font-mono tracking-wide shadow-sm"><i class="fa-solid fa-database text-[10px] mr-1 text-slate-400"></i>{{ b.codigo_bd }}</span>
+                </div>
+                <div class="mt-2 text-sm font-medium text-slate-700 leading-snug border-l-2 border-blue-500 pl-2">{{ b.titulo_bd or 'Sin título registrado' }}</div>
+            </div>
 
-{% block content %}
-<div class="page-wrapper" data-bitacora-id="{{ bitacora.id }}">
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                <div class="bg-blue-50 rounded-lg p-2 border border-blue-100"><span class="text-[9px] font-bold text-blue-400 uppercase block mb-0.5"><i class="fa-solid fa-user-tie mr-1"></i>Sup. Claro</span><div class="text-xs font-bold text-blue-900 truncate">{{ b.responsable_claro_bd or '-' }}</div></div>
+                <div class="bg-amber-50 rounded-lg p-2 border border-amber-100"><span class="text-[9px] font-bold text-amber-500 uppercase block mb-0.5"><i class="fa-solid fa-helmet-safety mr-1"></i>Sup. Cicsa</span><div class="text-xs font-bold text-amber-900 truncate">{{ b.responsable_cicsa_bd or '-' }}</div></div>
+            </div>
 
-  <div class="card card-custom mb-3 border-0 shadow-sm animate__animated animate__fadeIn">
-    <div class="card-body p-3">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <div class="d-flex align-items-center">
-            <span class="badge bg-primary me-2"><i class="bi bi-ticket-fill"></i> #{{ bitacora.codigo_bd }}</span>
-            <span class="badge {% if bitacora.is_cerrada %}bg-success{% else %}bg-warning text-dark{% endif %}">
-                {{ bitacora.estado_textual_bd or "EN PROCESO" }}
-            </span>
+            <div class="bg-slate-50 rounded-xl p-3 border border-slate-100 grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
+                <div class="col-span-2 border-b border-slate-200 pb-2 mb-1"><span class="block font-bold text-slate-400 uppercase text-[9px]">Ubicación / Site</span><div class="font-bold text-slate-700 flex items-center gap-1"><i class="fa-solid fa-location-dot text-red-500"></i> {{ b.zona_bd }} / {{ b.nombresite_bd }}</div></div>
+                <div><span class="block font-bold text-slate-400 uppercase text-[9px]">Causa</span> <div class="font-medium text-slate-700 leading-tight">{{ b.causa_bd or '-' }}</div></div>
+                <div><span class="block font-bold text-slate-400 uppercase text-[9px]">SOT</span> <div class="font-medium text-slate-700">{{ b.nrosot_bd or '-' }}</div></div>
+                <div><span class="block font-bold text-slate-400 uppercase text-[9px]">OTDR</span> <div class="font-mono bg-white px-1 rounded border border-slate-200 inline-block text-slate-600">{{ b.otdr_bd or '-' }}</div></div>
+                <div><span class="block font-bold text-slate-400 uppercase text-[9px]">Red</span> <div class="font-medium text-slate-700">{{ b.red1_bd or '-' }}</div></div>
+            </div>
         </div>
-      </div>
+    </div>
 
-      <h5 class="fw-bold text-dark mb-1">
-        {{ bitacora.titulo_bd or "Incidencia sin título" }}
-      </h5>
-      <div class="small text-muted mb-3">
-        <i class="bi bi-geo-alt-fill text-danger"></i>
-        {{ bitacora.distrito_bd or "Sin distrito" }}
-        {% if bitacora.zona_bd %} - {{ bitacora.zona_bd }}{% endif %}
-      </div>
+    <div class="max-w-md mx-auto px-4">
 
-      <div class="bg-light rounded-3 p-3 border">
-        <div class="row g-2 small">
-          <div class="col-6">
-            <span class="text-secondary d-block fw-bold" style="font-size:0.7rem">TIPO AVERÍA</span>
-            <span class="text-dark">{{ bitacora.tipoaveria_bd or "-" }}</span>
-          </div>
-          <div class="col-6">
-             <span class="text-secondary d-block fw-bold" style="font-size:0.7rem">CLIENTE / SITIO</span>
-             <span class="text-dark text-truncate d-block">
-               {{ bitacora.nombrecliente_bd or bitacora.nombresite_bd or "-" }}
-             </span>
-          </div>
-          <div class="col-6 mt-2">
-             <span class="text-secondary d-block fw-bold" style="font-size:0.7rem">MAPA</span>
-             {% if bitacora.lat_bd and bitacora.lon_bd %}
-               <a href="https://maps.google.com/?q={{ bitacora.lat_bd }},{{ bitacora.lon_bd }}" target="_blank" class="text-decoration-none fw-bold text-primary">
-                 <i class="bi bi-map"></i> Ver ubicación
-               </a>
-             {% else %}
-               <span class="text-muted">-</span>
-             {% endif %}
-          </div>
+        <div class="sticky-tools">
+            <div class="bg-white border-2 border-slate-200 rounded-xl p-1 flex items-center shadow-sm">
+                <div class="bg-slate-100 text-slate-500 w-10 h-10 rounded-lg flex items-center justify-center mr-2 shrink-0"><i class="fa-solid fa-user-group"></i></div>
+                <div class="flex-1 relative">
+                    <label class="block text-[9px] font-bold text-slate-400 uppercase leading-none mb-0.5 ml-1">Responsable del Consumo</label>
+                    <select id="brigada-select" onchange="persistBrigada()" class="w-full bg-transparent font-bold text-slate-800 text-sm focus:outline-none cursor-pointer appearance-none pl-1 py-1">
+                        {% if brigadas %}
+                            <option value="" disabled selected>-- Seleccionar Brigada --</option>
+                            {% for bri in brigadas %} <option value="{{ bri.val }}">{{ bri.lbl }}</option> {% endfor %}
+                        {% else %} <option value="" disabled>Sin brigadas</option> {% endif %}
+                    </select>
+                    <div class="absolute right-2 bottom-2 text-slate-400 pointer-events-none text-xs"><i class="fa-solid fa-chevron-down"></i></div>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  </div>
 
-  <div class="card card-custom p-3 border-0 shadow-sm">
-
-    <div class="row g-2 mb-3">
-      <div class="col-5">
-        <label class="form-label small text-uppercase text-muted fw-bold mb-1" style="font-size: 0.65rem;">Origen</label>
-        <select id="origen" class="form-select form-select-sm fw-bold border-0 bg-light py-2">
-          <option value="claro" selected>🔵 Claro</option>
-          <option value="cicsa">🔴 Cicsa</option>
-        </select>
-      </div>
-      <div class="col-7">
-        <label class="form-label small text-uppercase text-muted fw-bold mb-1" style="font-size: 0.65rem;">Brigada Responsable</label>
-        <select id="select-brigada" class="form-select form-select-sm fw-bold border-0 bg-light py-2 text-truncate">
-            {% for bri in brigadas %}
-              <option value="{{ bri }}">{{ bri }}</option>
-            {% endfor %}
-        </select>
-      </div>
-    </div>
-
-    <div class="mb-3 search-container position-relative">
-      <label class="form-label small text-muted mb-1">Buscar material</label>
-      <div class="input-group">
-        <span class="input-group-text bg-white border-end-0 rounded-start-3 ps-3"><i class="bi bi-search"></i></span>
-        <input
-          id="search-material"
-          type="search"
-          class="form-control form-control-lg-custom border-start-0"
-          placeholder="Escribe nombre, código o alias..."
-          autocomplete="off"
-        >
-      </div>
-      <div id="search-results" class="list-group position-absolute w-100 mt-1 d-none shadow-lg" style="z-index: 1050; max-height: 250px; overflow-y: auto;"></div>
-    </div>
-
-    <div id="selection-card" class="d-none animate__animated animate__fadeIn">
-      <div class="alert alert-primary border-0 d-flex align-items-start p-2 mb-3" role="alert" style="border-radius: 12px;">
-        <i class="bi bi-check-circle-fill text-primary mt-1 me-2 fs-5"></i>
-        <div class="w-100">
-          <div class="fw-bold text-dark" id="sel-desc">Cable Fibra</div>
-          <div class="d-flex justify-content-between mt-1">
-             <span class="small text-primary opacity-75">Cód: <span id="sel-code">---</span></span>
-             <span class="badge bg-white text-primary border">Unidad: <span id="sel-unit">---</span></span>
-          </div>
+        <div class="mt-4 relative">
+            <input type="text" id="search" class="search-input w-full pl-12 pr-4 py-3.5 bg-white rounded-xl text-base font-medium text-slate-800 placeholder:text-slate-400 outline-none" placeholder="Buscar material (Claro / Cicsa)..." autocomplete="off">
+            <div class="absolute left-4 top-3.5 text-slate-400 text-lg"><i class="fa-solid fa-magnifying-glass"></i></div>
+            <div id="spinner" class="hidden absolute right-4 top-3.5 text-blue-500 animate-spin"><i class="fa-solid fa-circle-notch"></i></div>
         </div>
-        <button type="button" class="btn-close ms-2" aria-label="Close" id="btn-cancel-sel"></button>
-      </div>
 
-      <div class="row g-2">
-        <div class="col-5">
-          <div class="quantity-control d-flex align-items-center bg-light rounded-3 p-1">
-            <button class="btn btn-quantity bg-white shadow-sm border-0 text-primary fw-bold" style="width: 40px; height: 40px;" id="btn-minus"><i class="bi bi-dash"></i></button>
-            <input id="cantidad" type="number" class="form-control border-0 bg-transparent text-center fw-bold p-0" value="1">
-            <button class="btn btn-quantity bg-white shadow-sm border-0 text-primary fw-bold" style="width: 40px; height: 40px;" id="btn-plus"><i class="bi bi-plus"></i></button>
-          </div>
+        <div id="results" class="mt-4 space-y-2">
+            <div class="text-center py-6 opacity-40"><i class="fa-regular fa-keyboard text-3xl mb-2"></i><p class="text-xs">Busca para agregar</p></div>
         </div>
-        <div class="col-7">
-          <button id="btn-guardar" class="btn btn-primary w-100 h-100 fw-bold shadow-sm rounded-3">
-            AGREGAR <i class="bi bi-arrow-down-circle ms-1"></i>
-          </button>
+
+        <div class="mt-8 border-t border-slate-200 pt-4">
+            <h3 class="text-[10px] font-bold text-slate-400 uppercase mb-3 flex items-center gap-1"><i class="fa-solid fa-list-check"></i> Registrados en la Bitácora</h3>
+            <div id="history-list" class="space-y-2.5 pb-10">
+                {% if historial %}
+                    {% for item in historial %}
+                    <div id="row-{{ item.id }}" class="history-item bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div class="flex-1 mr-2 overflow-hidden">
+                            <div class="flex gap-2 mb-0.5">
+                                <span class="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded">{{ item.brigada_responsable }}</span>
+                                {% if item.origen_material == 'CICSA' %}
+                                    <span class="text-[9px] font-bold text-purple-600 bg-purple-50 px-1 rounded border border-purple-100">CICSA</span>
+                                {% else %}
+                                    <span class="text-[9px] font-bold text-blue-600 bg-blue-50 px-1 rounded border border-blue-100">CLARO</span>
+                                {% endif %}
+                            </div>
+                            <div class="font-bold text-xs text-slate-700 truncate">{{ item.nombre_material }}</div>
+                            <div class="text-[10px] text-slate-400">Cod: {{ item.cod_material }}</div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="font-black text-lg text-slate-800">{{ item.cant_material | int }}</div>
+                            <button onclick="deleteItem({{ item.id }})" class="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition active:scale-90"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div id="empty-history" class="py-6 text-center border-2 border-dashed border-slate-100 rounded-xl text-slate-300 text-xs">No hay materiales registrados aún.</div>
+                {% endif %}
+            </div>
         </div>
-      </div>
     </div>
 
-    <div id="empty-state" class="text-center py-3 text-muted">
-      <small>Busca y selecciona un material para habilitar el guardado.</small>
+    <div id="qty-modal" class="hidden fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center px-4">
+        <div class="bg-white w-full max-w-xs rounded-2xl p-5 shadow-2xl animate-fade-in relative text-center">
+            <button onclick="closeModal()" class="absolute top-3 right-3 text-slate-300 hover:text-slate-500 p-2"><i class="fa-solid fa-xmark text-xl"></i></button>
+            <div class="mb-4">
+                <div id="modal-origin-badge" class="inline-block text-[9px] font-bold px-2 py-0.5 rounded border mb-2">ORIGEN</div>
+                <div class="inline-block bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200 mb-2" id="modal-code">COD</div>
+                <h3 class="text-sm font-bold text-slate-800 leading-tight px-2" id="modal-desc">...</h3>
+            </div>
+            <div class="flex items-center justify-center gap-4 mb-6">
+                <button onclick="adjustQty(-1)" class="w-12 h-12 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-xl transition">-</button>
+                <input type="number" id="modal-qty" value="1" class="w-16 text-center text-3xl font-black text-slate-800 bg-transparent focus:outline-none">
+                <button onclick="adjustQty(1)" class="w-12 h-12 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-xl transition">+</button>
+            </div>
+            <button onclick="confirmSave()" id="btn-confirm" class="w-full bg-blue-600 active:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-100 transition-transform active:scale-95">REGISTRAR</button>
+        </div>
     </div>
-  </div>
 
-  <div class="mt-4">
-    <h6 class="text-muted text-uppercase small fw-bold ms-2 mb-3">Materiales en esta Avería</h6>
+    <script>
+        const bitacoraId = "{{ bid }}";
+        let currentItem = null, searchTimer;
 
-    <div id="materiales-list" class="material-history-list mobile-list d-flex flex-column gap-2"></div>
+        const brigadaSelect = document.getElementById('brigada-select');
+        const savedBri = sessionStorage.getItem(`bri_${bitacoraId}`);
+        if(savedBri) brigadaSelect.value = savedBri;
+        function persistBrigada() { sessionStorage.setItem(`bri_${bitacoraId}`, brigadaSelect.value); }
 
-    <div class="card shadow-sm border-0 desktop-table overflow-hidden d-none d-md-block">
-      <div class="table-responsive">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light small text-muted">
-            <tr>
-              <th>Cód.</th>
-              <th>Descripción</th>
-              <th>Brigada</th>
-              <th>Cant.</th>
-              <th>Unidad</th>
-              <th>Hora</th>
-              <th class="text-end">Acción</th>
-            </tr>
-          </thead>
-          <tbody id="materiales-body"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+        const searchInput = document.getElementById('search');
+        const resultsDiv = document.getElementById('results');
+        const spinner = document.getElementById('spinner');
 
-</div>
-{% endblock %}
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimer);
+            const q = e.target.value.trim();
+            if(q.length < 3) { resultsDiv.innerHTML = ''; return; }
+            spinner.classList.remove('hidden');
+            searchTimer = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/api/search?q=${q}`);
+                    const data = await res.json();
+                    renderResults(data);
+                } catch(err) { console.error(err); }
+                spinner.classList.add('hidden');
+            }, 400);
+        });
 
-{% block extra_js %}
-  <script src="https://cdn.jsdelivr.net/npm/axios@1.7.7/dist/axios.min.js"></script>
-  <script src="{{ url_for('static', filename='materiales.js') }}"></script>
-{% endblock %}
+        function renderResults(data) {
+            if(data.length === 0) { resultsDiv.innerHTML = '<div class="text-center py-4 text-slate-400 text-xs">No encontrado</div>'; return; }
+            let html = '';
+            data.forEach(item => {
+                const json = encodeURIComponent(JSON.stringify(item));
+
+                // Badge de origen
+                let badge = item.origen === 'CICSA'
+                    ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-purple-100 text-purple-600 border-purple-200">CICSA</span>'
+                    : '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-blue-100 text-blue-600 border-blue-200">CLARO</span>';
+
+                html += `<div onclick="openModal('${json}')" class="card-material p-3 flex items-center justify-between cursor-pointer mb-2">
+                    <div class="flex-1 mr-3 overflow-hidden">
+                        <div class="flex gap-2 mb-1">
+                            ${badge}
+                            <span class="text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 rounded border border-slate-200">${item.codigo}</span>
+                        </div>
+                        <div class="font-bold text-xs text-slate-700 leading-snug truncate">${item.descripcion}</div>
+                        <div class="text-[9px] text-slate-400 mt-0.5">${item.categoria || ''}</div>
+                    </div>
+                    <div class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center"><i class="fa-solid fa-plus text-xs"></i></div>
+                </div>`;
+            });
+            resultsDiv.innerHTML = html;
+        }
+
+        const modal = document.getElementById('qty-modal'), mCode = document.getElementById('modal-code'), mDesc = document.getElementById('modal-desc'), mQty = document.getElementById('modal-qty'), mOrigin = document.getElementById('modal-origin-badge');
+
+        function openModal(json) {
+            currentItem = JSON.parse(decodeURIComponent(json));
+            mCode.innerText = currentItem.codigo;
+            mDesc.innerText = currentItem.descripcion;
+            mQty.value = 1;
+
+            if(currentItem.origen === 'CICSA') {
+                mOrigin.innerText = 'MATERIAL CICSA';
+                mOrigin.className = 'inline-block text-[9px] font-bold px-2 py-0.5 rounded border mb-2 bg-purple-100 text-purple-700 border-purple-200';
+            } else {
+                mOrigin.innerText = 'MATERIAL CLARO';
+                mOrigin.className = 'inline-block text-[9px] font-bold px-2 py-0.5 rounded border mb-2 bg-blue-100 text-blue-700 border-blue-200';
+            }
+
+            modal.classList.remove('hidden');
+            mQty.focus();
+        }
+
+        function closeModal() { modal.classList.add('hidden'); currentItem = null; }
+        function adjustQty(delta) { let val = parseInt(mQty.value) || 0; if(val + delta > 0) mQty.value = val + delta; }
+
+        async function confirmSave() {
+            const bri = brigadaSelect.value;
+            if(!bri) { alert('⚠️ Selecciona la BRIGADA responsable arriba.'); closeModal(); window.scrollTo({top:0, behavior:'smooth'}); brigadaSelect.parentElement.classList.add('ring-2', 'ring-red-400'); setTimeout(()=>brigadaSelect.parentElement.classList.remove('ring-2', 'ring-red-400'), 1500); return; }
+            const btn = document.getElementById('btn-confirm'); const originalText = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; btn.disabled = true;
+            try {
+                const res = await fetch('/api/save-single', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ bid: bitacoraId, bri: bri, item: currentItem, cant: parseFloat(mQty.value) }) });
+                if(res.ok) { const data = await res.json(); addToHistory(data.saved); closeModal(); searchInput.value = ''; resultsDiv.innerHTML = ''; const t = document.createElement('div'); t.className = 'fixed top-5 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-full shadow-xl z-[60] animate-bounce'; t.innerText = '✅ Registrado'; document.body.appendChild(t); setTimeout(()=>t.remove(), 1500); } else { alert('Error guardando'); }
+            } catch(e) { alert('Error conexión'); }
+            btn.innerHTML = originalText; btn.disabled = false;
+        }
+
+        async function deleteItem(id) {
+            if(!confirm('¿Borrar?')) return;
+            const row = document.getElementById(`row-${id}`); row.style.opacity = '0.5';
+            try { const res = await fetch('/api/delete-item', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ item_id: id }) }); if(res.ok) { row.remove(); } else { alert('Error'); row.style.opacity = '1'; } } catch(e) { alert('Error'); row.style.opacity = '1'; }
+        }
+
+        function addToHistory(item) {
+            document.getElementById('empty-history').style.display = 'none';
+            const list = document.getElementById('history-list');
+
+            let badgeHist = item.origen_material === 'CICSA'
+                ? '<span class="text-[9px] font-bold bg-purple-50 text-purple-600 px-1 rounded border border-purple-100">CICSA</span>'
+                : '<span class="text-[9px] font-bold bg-blue-50 text-blue-600 px-1 rounded border border-blue-100">CLARO</span>';
+
+            const div = document.createElement('div'); div.id = `row-${item.id}`; div.className = 'history-item bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between new-item';
+            div.innerHTML = `<div class="flex-1 mr-2 overflow-hidden"><div class="flex gap-2 mb-0.5"><span class="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded">${item.brigada_responsable}</span>${badgeHist}</div><div class="font-bold text-xs text-slate-700 truncate">${item.nombre_material}</div><div class="text-[10px] text-slate-400">Cod: ${item.cod_material}</div></div><div class="flex items-center gap-3"><div class="font-black text-lg text-slate-800">${parseInt(item.cant_material)}</div><button onclick="deleteItem(${item.id})" class="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition active:scale-90"><i class="fa-solid fa-trash-can text-xs"></i></button></div>`;
+            list.insertBefore(div, list.firstChild);
+        }
+    </script>
+</body>
+</html>

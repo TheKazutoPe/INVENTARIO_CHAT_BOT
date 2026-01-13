@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes | Materiales</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #F1F5F9; color: #1e293b; }
+        .table-header { @apply px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200 whitespace-nowrap sticky top-0 z-10; }
+        .table-cell { @apply px-4 py-3 text-xs text-slate-700 border-b border-slate-100 whitespace-nowrap; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-black text-slate-800 flex items-center gap-3"><div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200"><i class="fa-solid fa-chart-pie"></i></div>Reporte General</h1>
+                <p class="text-slate-500 text-sm mt-1 ml-1">Visualización y descarga de materiales registrados.</p>
+            </div>
+            <div class="flex gap-3">
+                <a href="/api/exportar-excel" class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-green-100 transition transform hover:-translate-y-0.5"><i class="fa-solid fa-file-excel text-lg"></i><span>Descargar Excel</span></a>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-white">
+                <div class="relative w-full md:w-96">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fa-solid fa-search text-slate-400"></i></div>
+                    <input type="text" id="searchInput" class="pl-10 pr-4 py-2.5 w-full bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition" placeholder="Filtrar por INC, Brigada, Material...">
+                </div>
+                <div class="text-xs text-slate-400 font-medium">Mostrando últimos <span class="font-bold text-slate-700" id="rowCount">0</span> registros</div>
+            </div>
+
+            <div class="overflow-x-auto max-h-[65vh]">
+                <table class="min-w-full w-full">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="table-header w-24">Fecha</th>
+                            <th class="table-header">Incidencia / ID</th>
+                            <th class="table-header">Brigada</th>
+                            <th class="table-header">Origen</th>
+                            <th class="table-header">Material</th>
+                            <th class="table-header text-center">Cant.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="bg-white divide-y divide-slate-50">
+                        <tr><td colspan="6" class="p-12 text-center text-slate-400"><i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2"></i><p>Cargando datos...</p></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/acumulados-data');
+                const data = await res.json();
+                renderTable(data);
+                document.getElementById('rowCount').innerText = data.length;
+            } catch(e) { document.getElementById('tableBody').innerHTML = '<tr><td colspan="6" class="p-8 text-center text-red-500">Error cargando datos.</td></tr>'; }
+        });
+
+        function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="p-12 text-center text-slate-400">No hay registros.</td></tr>'; return; }
+            let html = '';
+            data.forEach(r => {
+                const fecha = r.fecha_guardado ? r.fecha_guardado.substring(0, 10) : '-';
+                const origenBadge = r.origen_material === 'CICSA'
+                    ? '<span class="bg-purple-100 text-purple-600 px-2 py-0.5 rounded text-[10px] font-bold border border-purple-200">CICSA</span>'
+                    : '<span class="bg-blue-100 text-blue-600 px-2 py-0.5 rounded text-[10px] font-bold border border-blue-200">CLARO</span>';
+
+                html += `<tr class="hover:bg-blue-50/50 transition">
+                    <td class="table-cell font-mono text-slate-500">${fecha}</td>
+                    <td class="table-cell"><div class="font-bold text-slate-800">${r.inc || 'S/N'}</div><div class="text-[10px] text-slate-400">Ref: ${r.bitacora_id}</div></td>
+                    <td class="table-cell"><span class="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-[11px] font-bold border border-amber-100">${r.brigada_responsable || 'N/A'}</span></td>
+                    <td class="table-cell">${origenBadge}</td>
+                    <td class="table-cell"><div class="truncate max-w-[200px] font-medium text-slate-700" title="${r.nombre_material}">${r.nombre_material}</div><span class="text-[10px] font-mono text-slate-400 bg-slate-100 px-1 rounded">${r.cod_material}</span></td>
+                    <td class="table-cell text-center"><span class="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">${parseFloat(r.cant_material)}</span></td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            const val = this.value.toLowerCase();
+            document.querySelectorAll('#tableBody tr').forEach(row => { row.style.display = row.innerText.toLowerCase().includes(val) ? '' : 'none'; });
+        });
+    </script>
+</body>
+</html>

@@ -1,271 +1,186 @@
-(function () {
-  const wrapper = document.querySelector(".page-wrapper");
-  if (!wrapper) return;
+document.addEventListener('DOMContentLoaded', () => {
+    // Referencias
+    const searchInput = document.getElementById('search-material');
+    const resultsContainer = document.getElementById('results-container');
+    const selectedBody = document.getElementById('selected-body');
+    const totalElem = document.getElementById('total-general');
+    const itemCountElem = document.getElementById('item-count');
+    const btnGuardar = document.getElementById('btn-guardar');
+    const bitacoraId = document.getElementById('bitacora_id').value;
+    
+    // Referencias Multi-Brigada
+    const brigadaSelector = document.getElementById('brigada-selector');
+    const brigadaDisplay = document.getElementById('brigada-display');
 
-  const bitacoraId = Number(wrapper.dataset.bitacoraId);
-  const origenSelect = document.getElementById("origen");
-  const selectBrigada = document.getElementById("select-brigada"); // Select de Brigada
-  const searchInput = document.getElementById("search-material");
-  const resultsBox = document.getElementById("search-results");
+    let seleccionados = [];
 
-  // UI Elements
-  const selectionCard = document.getElementById("selection-card");
-  const emptyState = document.getElementById("empty-state");
-  const selDesc = document.getElementById("sel-desc");
-  const selCode = document.getElementById("sel-code");
-  const selUnit = document.getElementById("sel-unit");
-  const btnCancelSel = document.getElementById("btn-cancel-sel");
-
-  const cantidadInput = document.getElementById("cantidad");
-  const btnMinus = document.getElementById("btn-minus");
-  const btnPlus = document.getElementById("btn-plus");
-  const btnGuardar = document.getElementById("btn-guardar");
-
-  // Lists
-  const materialesListMobile = document.getElementById("materiales-list");
-  const tablaBodyDesktop = document.getElementById("materiales-body");
-
-  let selectedMaterial = null;
-
-  // --- LÓGICA DE DECIMALES ---
-  const DECIMAL_UNITS = ["M", "MTS", "MT", "MTR", "KM", "KG", "LITRO", "M3"];
-
-  function configureQuantityInput(unitRaw) {
-    const unit = (unitRaw || "").toUpperCase().trim();
-    // Permitir decimales si es M, KG, etc. o contiene "METRO"
-    const isDecimal = DECIMAL_UNITS.includes(unit) || unit.includes("METRO");
-
-    if (isDecimal) {
-      cantidadInput.step = "0.1";
-      cantidadInput.value = "1.0";
-    } else {
-      cantidadInput.step = "1";
-      cantidadInput.value = "1";
-    }
-  }
-
-  // --- SELECCIÓN ---
-  function selectItem(item) {
-    selectedMaterial = item;
-    selDesc.textContent = item.descripcion;
-    selCode.textContent = item.codigo;
-    selUnit.textContent = item.unidad || "-";
-
-    configureQuantityInput(item.unidad);
-
-    emptyState.classList.add("d-none");
-    selectionCard.classList.remove("d-none");
-    resultsBox.classList.add("d-none");
-    searchInput.value = "";
-    setTimeout(() => cantidadInput.focus(), 100);
-  }
-
-  function cancelSelection() {
-    selectedMaterial = null;
-    selectionCard.classList.add("d-none");
-    emptyState.classList.remove("d-none");
-    cantidadInput.value = "1";
-  }
-  btnCancelSel.addEventListener("click", cancelSelection);
-
-  // --- CONTROLES + / - ---
-  btnPlus.addEventListener("click", () => {
-    let val = parseFloat(cantidadInput.value) || 0;
-    const isDecimal = cantidadInput.step === "0.1";
-    const step = isDecimal ? 0.1 : 1;
-    let newVal = val + step;
-    if(isDecimal) newVal = parseFloat(newVal.toFixed(2));
-    cantidadInput.value = newVal;
-  });
-
-  btnMinus.addEventListener("click", () => {
-    let val = parseFloat(cantidadInput.value) || 0;
-    const isDecimal = cantidadInput.step === "0.1";
-    const step = isDecimal ? 0.1 : 1;
-    if (val > step) {
-        let newVal = val - step;
-        if(isDecimal) newVal = parseFloat(newVal.toFixed(2));
-        cantidadInput.value = newVal;
-    }
-  });
-
-  cantidadInput.addEventListener("change", () => {
-     let val = parseFloat(cantidadInput.value);
-     if (val < 0) cantidadInput.value = 1;
-     if (cantidadInput.step === "1") cantidadInput.value = Math.floor(val) || 1;
-  });
-
-  // --- BUSCADOR ---
-  async function buscarMateriales(term) {
-    const origen = origenSelect.value;
-    if (term.length < 3) {
-      resultsBox.classList.add("d-none");
-      return;
-    }
-    try {
-      const resp = await axios.get("/api/materiales/buscar", { params: { origen, q: term } });
-      const items = resp.data.items || [];
-      resultsBox.innerHTML = "";
-
-      if (!items.length) {
-        resultsBox.innerHTML = `<div class="list-group-item text-muted small">No se encontraron resultados.</div>`;
-        resultsBox.classList.remove("d-none");
-        return;
-      }
-
-      items.forEach((item) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "list-group-item list-group-item-action py-2";
-        const badgeColor = item.unidad ? 'bg-light text-dark border' : 'd-none';
-        btn.innerHTML = `
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="text-truncate me-2">
-              <div class="fw-bold small text-dark">${item.codigo}</div>
-              <div class="small text-secondary text-truncate">${item.descripcion}</div>
-            </div>
-            <span class="badge ${badgeColor} ms-auto">${item.unidad || ""}</span>
-          </div>
-        `;
-        btn.addEventListener("click", () => selectItem(item));
-        resultsBox.appendChild(btn);
-      });
-      resultsBox.classList.remove("d-none");
-    } catch (err) { console.error(err); }
-  }
-
-  function debounce(fn, d) {
-    let t; return function(...a){ clearTimeout(t); t = setTimeout(()=>fn.apply(this,a),d); };
-  }
-  const debouncedSearch = debounce((term) => buscarMateriales(term), 300);
-
-  searchInput.addEventListener("input", (e) => {
-      if(selectedMaterial && !selectionCard.classList.contains("d-none")) cancelSelection();
-      debouncedSearch(e.target.value.trim());
-  });
-
-  document.addEventListener("click", (e) => {
-    if (!resultsBox.contains(e.target) && e.target !== searchInput) resultsBox.classList.add("d-none");
-  });
-
-  // --- GUARDAR ---
-  btnGuardar.addEventListener("click", async () => {
-    if (!selectedMaterial) return;
-
-    // Validar Brigada
-    if (!selectBrigada.value || selectBrigada.value === "Sin Asignar") {
-        alert("Por favor selecciona una Brigada Responsable antes de guardar.");
-        selectBrigada.focus();
-        return;
+    // Actualizar visualmente la brigada seleccionada en el footer del carrito
+    if(brigadaSelector) {
+        brigadaDisplay.innerText = brigadaSelector.value || 'Ninguna';
+        brigadaSelector.addEventListener('change', () => {
+            brigadaDisplay.innerText = brigadaSelector.value;
+        });
     }
 
-    const originalText = btnGuardar.innerHTML;
-    btnGuardar.disabled = true;
-    btnGuardar.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Guardando...`;
+    // --- BUSCADOR ---
+    searchInput.addEventListener('input', async (e) => {
+        const q = e.target.value.trim();
+        if (q.length < 3) { 
+            resultsContainer.innerHTML = `<div class="flex flex-col items-center justify-center py-10 text-slate-400"><i class="fa-regular fa-keyboard text-3xl mb-2 opacity-50"></i><span class="text-sm">...</span></div>`; 
+            return; 
+        }
+        try {
+            const res = await fetch(`/api/search-materials?q=${q}`);
+            const data = await res.json();
+            renderResultados(data);
+        } catch (err) { console.error(err); }
+    });
 
-    try {
-      const payload = {
-        bitacora_id: bitacoraId,
-        origen: origenSelect.value,
-        brigada: selectBrigada.value, // Envío de Brigada
-        codigo: selectedMaterial.codigo,
-        descripcion: selectedMaterial.descripcion,
-        unidad: selectedMaterial.unidad,
-        cantidad: Number(cantidadInput.value)
-      };
-
-      const resp = await axios.post("/api/materiales/guardar", payload);
-      if (resp.data.ok) {
-        cancelSelection();
-        await cargarMateriales();
-      } else {
-        alert("Error al guardar: " + resp.data.error);
-      }
-    } catch (err) {
-      alert("Error de conexión");
-    } finally {
-      btnGuardar.disabled = false;
-      btnGuardar.innerHTML = originalText;
+    function renderResultados(data) {
+        if (data.length === 0) {
+            resultsContainer.innerHTML = `<div class="text-center py-4 text-slate-400 text-sm">No encontrado</div>`;
+            return;
+        }
+        let html = '';
+        data.forEach(m => {
+            const costo = m.costo ? parseFloat(m.costo) : 0;
+            const mData = encodeURIComponent(JSON.stringify(m));
+            html += `
+                <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm mb-2 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group flex justify-between items-center"
+                     onclick="agregar('${mData}')">
+                    <div class="overflow-hidden mr-2">
+                        <div class="flex items-center gap-2 mb-1">
+                             <span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">${m.codigo || 'S/C'}</span>
+                             <span class="text-[10px] text-slate-400">${m.categoria || ''}</span>
+                        </div>
+                        <h4 class="text-sm font-medium text-slate-700 leading-tight truncate group-hover:text-blue-700" title="${m.descripcion}">${m.descripcion}</h4>
+                    </div>
+                    <div class="text-right whitespace-nowrap">
+                        <div class="text-sm font-bold text-slate-800">$${costo.toFixed(2)}</div>
+                        <i class="fa-solid fa-circle-plus text-blue-200 group-hover:text-blue-600 text-xl transition-colors mt-1"></i>
+                    </div>
+                </div>
+            `;
+        });
+        resultsContainer.innerHTML = html;
     }
-  });
 
-  // --- BORRAR ---
-  window.borrarMaterial = async (id) => {
-      if(!confirm("¿Estás seguro de eliminar este material?")) return;
-      try {
-          const resp = await axios.delete(`/api/materiales/borrar/${id}`);
-          if(resp.data.ok) {
-              await cargarMateriales();
-          } else {
-              alert("Error al borrar");
-          }
-      } catch(err) {
-          console.error(err);
-          alert("Error de conexión");
-      }
-  };
+    // --- AGREGAR ---
+    window.agregar = (encodedJson) => {
+        const m = JSON.parse(decodeURIComponent(encodedJson));
+        const codigo = m.codigo || m.cod_sap;
+        const idx = seleccionados.findIndex(s => s.codigo === codigo);
+        
+        if (idx >= 0) {
+            seleccionados[idx].cantidad++;
+        } else {
+            seleccionados.push({
+                codigo: codigo,
+                descripcion: m.descripcion,
+                categoria: m.categoria || '',
+                subcategoria: m.subcategoria || '',
+                moneda: m.moneda || 'D',
+                costo_unitario: m.costo ? parseFloat(m.costo) : 0,
+                cantidad: 1
+            });
+        }
+        renderTabla();
+    };
 
-  // --- LISTAR ---
-  async function cargarMateriales() {
-    try {
-      const resp = await axios.get(`/api/materiales/listar/${bitacoraId}`);
-      const items = resp.data.items || [];
+    // --- TABLA ---
+    function renderTabla() {
+        if (seleccionados.length === 0) {
+            selectedBody.innerHTML = `<tr><td colspan="5" class="p-12 text-center text-slate-400 text-sm">Carrito vacío.</td></tr>`;
+            totalElem.innerText = '$ 0.00';
+            itemCountElem.innerText = '0';
+            return;
+        }
+        let html = '';
+        let total = 0;
+        let items = 0;
 
-      materialesListMobile.innerHTML = "";
-      tablaBodyDesktop.innerHTML = "";
+        seleccionados.forEach((s, i) => {
+            const subtotal = s.cantidad * s.costo_unitario;
+            total += subtotal;
+            items += s.cantidad;
+            html += `
+                <tr class="group hover:bg-slate-50 border-b border-slate-50">
+                    <td class="p-3">
+                        <div class="font-bold text-slate-700 text-xs">${s.codigo}</div>
+                        <div class="text-xs text-slate-500 truncate max-w-[180px]" title="${s.descripcion}">${s.descripcion}</div>
+                    </td>
+                    <td class="p-3 text-right text-xs text-slate-600">$${s.costo_unitario.toFixed(2)}</td>
+                    <td class="p-3">
+                        <div class="flex items-center justify-center bg-white border border-slate-200 rounded-lg h-8 w-20 mx-auto">
+                            <button onclick="editCant(${i}, -1)" class="w-6 h-full text-slate-400 hover:text-blue-600">-</button>
+                            <input type="text" readonly value="${s.cantidad}" class="w-8 text-center text-xs font-bold text-slate-700">
+                            <button onclick="editCant(${i}, 1)" class="w-6 h-full text-slate-400 hover:text-blue-600">+</button>
+                        </div>
+                    </td>
+                    <td class="p-3 text-right font-bold text-slate-800 text-xs">$${subtotal.toFixed(2)}</td>
+                    <td class="p-3 text-center">
+                        <button onclick="del(${i})" class="text-slate-300 hover:text-red-500"><i class="fa-solid fa-times"></i></button>
+                    </td>
+                </tr>
+            `;
+        });
+        selectedBody.innerHTML = html;
+        totalElem.innerText = `$ ${total.toFixed(2)}`;
+        itemCountElem.innerText = items;
+    }
 
-      if (items.length === 0) {
-        materialesListMobile.innerHTML = `<div class="text-center small text-muted py-3">Sin materiales registrados.</div>`;
-        return;
-      }
+    window.editCant = (i, d) => {
+        if (seleccionados[i].cantidad + d > 0) { seleccionados[i].cantidad += d; renderTabla(); }
+    };
+    window.del = (i) => { seleccionados.splice(i, 1); renderTabla(); };
 
-      items.forEach(item => {
-        // MÓVIL (Cards)
-        const cardDiv = document.createElement("div");
-        cardDiv.className = "card card-body p-2 border shadow-sm d-flex flex-row align-items-center animate__animated animate__fadeInUp";
-        const iconClass = item.origen.toLowerCase() === 'claro' ? 'bi-circle-fill text-primary' : 'bi-circle-fill text-danger';
+    // --- GUARDAR ---
+    btnGuardar.addEventListener('click', async () => {
+        if(seleccionados.length === 0) return alert('No hay materiales seleccionados.');
+        
+        // VALIDACIÓN: ¿Hay brigada seleccionada?
+        const brigadaVal = brigadaSelector ? brigadaSelector.value : null;
+        if (!brigadaVal) return alert('⚠️ ATENCIÓN: Debes seleccionar la BRIGADA responsable antes de guardar.');
 
-        cardDiv.innerHTML = `
-          <div class="me-3 fs-4"><i class="${iconClass}"></i></div>
-          <div class="flex-grow-1 overflow-hidden">
-             <div class="fw-bold text-dark small text-truncate">${item.descripcion}</div>
-             <div class="d-flex align-items-center mt-1">
-                <span class="badge bg-light text-secondary border small me-2">${item.brigada || "S/A"}</span>
-                <span class="small text-muted">${item.created_at ? item.created_at.split(' ')[1] : ''}</span>
-             </div>
-          </div>
-          <div class="ms-2 text-end d-flex flex-column align-items-end">
-             <div>
-                 <span class="fs-5 fw-bold text-dark">${item.cantidad}</span>
-                 <span class="small text-muted" style="font-size:0.6rem">${item.unidad || ""}</span>
-             </div>
-             <button onclick="borrarMaterial(${item.id})" class="btn btn-sm btn-outline-danger border-0 p-1 mt-1" style="line-height:1;">
-                <i class="bi bi-trash"></i>
-             </button>
-          </div>
-        `;
-        materialesListMobile.appendChild(cardDiv);
+        if (!confirm(`¿Registrar estos materiales a la brigada ${brigadaVal}?`)) return;
 
-        // DESKTOP (Tabla)
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><span class="font-monospace small">${item.codigo}</span></td>
-          <td class="text-truncate" style="max-width: 250px;">${item.descripcion}</td>
-          <td><span class="badge bg-light text-dark border">${item.brigada || "-"}</span></td>
-          <td class="fw-bold">${item.cantidad}</td>
-          <td class="small text-muted">${item.unidad || ""}</td>
-          <td class="small text-muted">${item.created_at || ""}</td>
-          <td class="text-end">
-            <button onclick="borrarMaterial(${item.id})" class="btn btn-sm btn-outline-danger" title="Borrar">
-                <i class="bi bi-trash-fill"></i>
-            </button>
-          </td>
-        `;
-        tablaBodyDesktop.appendChild(tr);
-      });
-
-    } catch (err) { console.error(err); }
-  }
-
-  cargarMateriales();
-})();
+        const original = btnGuardar.innerHTML;
+        btnGuardar.disabled = true;
+        btnGuardar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+        
+        try {
+            const res = await fetch('/api/guardar-acumulados', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                // ENVIAMOS LA BRIGADA SELECCIONADA
+                body: JSON.stringify({ 
+                    bitacora_id: bitacoraId, 
+                    brigada_seleccionada: brigadaVal,
+                    materiales: seleccionados 
+                })
+            });
+            
+            if(res.ok) {
+                btnGuardar.classList.replace('bg-blue-600', 'bg-green-500');
+                btnGuardar.innerHTML = '<i class="fa-solid fa-check"></i> Registro Exitoso';
+                setTimeout(() => {
+                    seleccionados = []; // Limpiar carrito para poder agregar a OTRA brigada si se desea
+                    renderTabla();
+                    btnGuardar.classList.replace('bg-green-500', 'bg-blue-600');
+                    btnGuardar.disabled = false;
+                    btnGuardar.innerHTML = original;
+                }, 1500);
+            } else {
+                const err = await res.json();
+                alert('Error: ' + err.error);
+                btnGuardar.disabled = false;
+                btnGuardar.innerHTML = original;
+            }
+        } catch(e) {
+            console.error(e);
+            alert('Error de conexión');
+            btnGuardar.disabled = false;
+            btnGuardar.innerHTML = original;
+        }
+    });
+});

@@ -1,4 +1,6 @@
-flask
+Flask
 supabase
-python-dotenv
+pandas
+openpyxl
 gunicorn
+python-dotenv

@@ -18,18 +18,44 @@ except Exception as e:
 
 
 # =====================================================================
-#  VISTA 1: TÉCNICO (REGISTRO PURO)
+#  FUNCION AUXILIAR: CALCULAR IDENTIFICADOR (INC > TAS > SOT > ID)
+# =====================================================================
+def get_identifier(b_data):
+    """
+    Determina qué mostrar como identificador principal siguiendo la prioridad:
+    1. INCIDENCIA
+    2. TAS
+    3. SOT
+    4. CÓDIGO BD (Correlativo) - Solo si todo lo demás falla
+    """
+    if not b_data: return "S/N"
+
+    # Extraer y limpiar valores
+    inc = str(b_data.get('nroincidencia_bd') or '').strip()
+    tas = str(b_data.get('nrotas_bd') or '').strip()
+    sot = str(b_data.get('nrosot_bd') or '').strip()
+    correlativo = str(b_data.get('codigo_bd') or '').strip()
+
+    invalidos = ['NONE', 'NULL', 'NAN', 'NO TIENE', '', '0']
+
+    if inc and inc.upper() not in invalidos: return inc
+    if tas and tas.upper() not in invalidos: return tas
+    if sot and sot.upper() not in invalidos: return sot
+
+    return correlativo  # Último recurso
+
+
+# =====================================================================
+#  VISTA 1: TÉCNICO (REGISTRO)
 # =====================================================================
 @app.route('/materiales/<bitacora_id>')
 def materiales_view(bitacora_id):
     if not bitacora_id.isdigit(): return render_template('not_found.html', error="ID inválido"), 400
     try:
-        # A. Datos Bitácora
         res = supabase.table('bitacoras').select("*").eq('id', int(bitacora_id)).execute()
         if not res.data: return render_template('not_found.html', error="Bitácora no encontrada"), 404
         bitacora = res.data[0]
 
-        # B. Historial Local (Solo de esta bitácora)
         historial_res = supabase.table(Config.ACUMULADO_TABLE) \
             .select("*") \
             .eq('bitacora_id', str(bitacora_id)) \
@@ -37,7 +63,6 @@ def materiales_view(bitacora_id):
             .execute()
         historial = historial_res.data if historial_res.data else []
 
-        # C. Brigadas (Mapeo Oficial -> Corto)
         brigadas = []
         raw_names = [bitacora.get(f'bri{i}_oficial') for i in range(1, 6) if bitacora.get(f'bri{i}_oficial')]
 
@@ -60,7 +85,7 @@ def materiales_view(bitacora_id):
 
 
 # =====================================================================
-#  VISTA 2: SUPERVISOR (REPORTES Y EXCEL)
+#  VISTA 2: SUPERVISOR (REPORTES)
 # =====================================================================
 @app.route('/reportes')
 def reportes_view():
@@ -70,28 +95,72 @@ def reportes_view():
 @app.route('/api/acumulados-data', methods=['GET'])
 def get_acumulados_data():
     try:
-        # Trae los últimos 200 registros para visualización rápida
+        # 1. Traer datos acumulados
         res = supabase.table(Config.ACUMULADO_TABLE).select("*").order('id', desc=True).limit(200).execute()
-        return jsonify(res.data)
+        data = res.data
+
+        if not data: return jsonify([])
+
+        # 2. "Curar" los datos en vivo consultando las bitácoras originales
+        # (Esto arregla visualmente registros viejos mal guardados)
+        bitacora_ids = list(set([str(r['bitacora_id']) for r in data if r.get('bitacora_id')]))
+
+        if bitacora_ids:
+            # Traemos la info real de las bitácoras involucradas
+            b_res = supabase.table('bitacoras') \
+                .select('id, nroincidencia_bd, nrotas_bd, nrosot_bd, codigo_bd') \
+                .in_('id', bitacora_ids) \
+                .execute()
+
+            # Crear mapa de acceso rápido { id_bitacora: datos_bitacora }
+            b_map = {str(b['id']): b for b in b_res.data}
+
+            # Sobrescribir el campo 'inc' con el dato correcto calculado en vivo
+            for r in data:
+                bid = str(r.get('bitacora_id'))
+                if bid in b_map:
+                    # Aquí sucede la magia: Recalcula INC/TAS/SOT
+                    r['inc'] = get_identifier(b_map[bid])
+
+        return jsonify(data)
     except Exception as e:
+        print(f"Error Reporte: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/exportar-excel')
 def exportar_excel():
     try:
-        # 1. Descargar TODO
+        # 1. Descargar Acumulados
         res = supabase.table(Config.ACUMULADO_TABLE).select("*").execute()
         data = res.data
         if not data: return "No hay datos", 404
 
+        # 2. Reparación de datos masiva (Igual que en la vista web)
+        bitacora_ids = list(set([str(r['bitacora_id']) for r in data if r.get('bitacora_id')]))
+        if bitacora_ids:
+            # Traemos info por lotes (si son muchos podría requerir paginación, pero para <1000 ok)
+            b_res = supabase.table('bitacoras') \
+                .select('id, nroincidencia_bd, nrotas_bd, nrosot_bd, codigo_bd') \
+                .in_('id', bitacora_ids) \
+                .execute()
+            b_map = {str(b['id']): b for b in b_res.data}
+
+            for r in data:
+                bid = str(r.get('bitacora_id'))
+                if bid in b_map:
+                    r['inc'] = get_identifier(b_map[bid])  # Corregimos la columna inc
+
         df = pd.DataFrame(data)
 
-        # 2. Mapeo Columnas BD -> Excel Final
+        # Limpieza de Ceros en código material
+        if 'cod_material' in df.columns:
+            df['cod_material'] = df['cod_material'].astype(str).str.lstrip('0')
+
         column_map = {
             'fecha_asign_inc': 'FECHA ASIGN INC',
-            'inc': 'INC',
-            'sot': 'SOT',
+            'inc': 'INC / TAS / SOT',  # Esta columna ahora tendrá el dato correcto
+            'sot': 'SOT REF',
             'red_afect': 'RED AFECT',
             'region': 'REGION',
             'subregion': 'SUBREGION',
@@ -107,9 +176,7 @@ def exportar_excel():
             'subcategoria': 'SUBCATEGORIA',
             'cod_material': 'COD MATERIAL',
             'nombre_material': 'NOMBRE MATERIAL',
-            # COLUMNA NUEVA SOLICITADA ------------------
             'origen_material': 'ORIGEN (CLARO/CICSA)',
-            # -------------------------------------------
             'precio_unit': 'PRECIO UNIT.',
             'cant_material': 'CANT. MATERIAL',
             'moneda': 'MONEDA',
@@ -134,14 +201,10 @@ def exportar_excel():
             'brigada_responsable': 'BRIGADA'
         }
 
-        # Renombrar columnas que existan en el DataFrame
         df.rename(columns=column_map, inplace=True)
-
-        # 3. Filtrar y Ordenar columnas finales (Solo las que existen)
         cols_finales = [val for key, val in column_map.items() if val in df.columns]
         df = df[cols_finales]
 
-        # 4. Generar Excel
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Base_Acumulada')
@@ -157,44 +220,53 @@ def exportar_excel():
 
 
 # =====================================================================
-#  BÚSQUEDA HÍBRIDA (CLARO + CICSA)
+#  BÚSQUEDA Y GUARDADO
 # =====================================================================
 @app.route('/api/search', methods=['GET'])
 def search():
     q = request.args.get('q', '').upper()
-    if len(q) < 3: return jsonify([])
+    if len(q) < 2: return jsonify([])
 
-    resultados = []
     try:
-        # 1. Buscar en CLARO
-        res_claro = supabase.table(Config.CATALOGO_CLARO_TABLE).select("*").or_(
-            f"{Config.CLARO_DESC_COL}.ilike.%{q}%,{Config.CLARO_CODE_COL}.ilike.%{q}%").limit(10).execute()
-        for item in res_claro.data:
-            resultados.append({
-                'codigo': item.get(Config.CLARO_CODE_COL),
-                'descripcion': item.get(Config.CLARO_DESC_COL),
-                'costo': float(item.get('costo') or 0),
-                'categoria': item.get('categoria', 'TELECOM'),
-                'subcategoria': item.get('subcategoria', ''),
-                'origen': 'CLARO'  # <--- Marca de origen
-            })
+        res = supabase.table('catalogo_unificado') \
+            .select("*") \
+            .or_(f"descripcion.ilike.%{q}%,codigo.ilike.%{q}%,cod_sap.ilike.%{q}%,cod_ax.ilike.%{q}%") \
+            .limit(20) \
+            .execute()
 
-        # 2. Buscar en CICSA (Tabla Nueva)
-        res_cicsa = supabase.table('catalogo_cicsa_materiales').select("*").or_(
-            f"descripcion.ilike.%{q}%,cod_ax.ilike.%{q}%").eq('activo', True).limit(10).execute()
-        for item in res_cicsa.data:
+        resultados = []
+        for item in res.data:
+            costo_str = str(item.get('costo', '0')).replace('$', '').replace(',', '').strip()
+            try:
+                costo_val = float(costo_str) if costo_str else 0.0
+            except:
+                costo_val = 0.0
+
+            ax = str(item.get('cod_ax', '')).strip()
+            if ax and ax not in ['NO TIENE']: ax = ax.lstrip('0')
+
+            sap = str(item.get('cod_sap', '')).strip()
+            internal = str(item.get('codigo', '')).strip()
+
+            codigo_visual = 'S/C'
+            if ax and ax not in ['NO TIENE', 'nan', 'None', '']:
+                codigo_visual = ax
+            elif sap and sap not in ['NO TIENE', 'nan', 'None', '']:
+                codigo_visual = sap
+            else:
+                codigo_visual = internal
+
             resultados.append({
-                'codigo': item.get('cod_ax'),
+                'codigo': internal,
+                'codigo_visual': codigo_visual,
                 'descripcion': item.get('descripcion'),
-                'costo': float(item.get('costo_unitario') or 0),
-                'categoria': item.get('tipo_uso', 'FERRETERIA'),  # Usamos tipo_uso como categoría
+                'costo': costo_val,
+                'categoria': item.get('categoria', 'GENERAL'),
                 'subcategoria': item.get('unidad', ''),
-                'origen': 'CICSA'  # <--- Marca de origen
+                'origen': item.get('empresa', 'CLARO'),
             })
-
         return jsonify(resultados)
     except Exception as e:
-        print(e)
         return jsonify([])
 
 
@@ -202,23 +274,21 @@ def search():
 def save_single():
     d = request.json
     try:
-        # Recuperar datos frescos de la bitácora
         b = supabase.table('bitacoras').select("*").eq('id', int(d['bid'])).execute().data[0]
         now = datetime.datetime.now()
 
-        # Detectar Origen (Si no viene, asumimos Claro)
-        origen = d['item'].get('origen', 'CLARO')
+        # Usamos la misma función auxiliar para consistencia
+        identifier = get_identifier(b)
 
+        origen = d['item'].get('origen', 'CLARO')
         cant = float(d['cant'])
         price = float(d['item']['costo'] or 0)
-        sub = cant * price
-        tc = 3.75
 
         row = {
             'bitacora_id': str(d['bid']),
             'brigada_responsable': d['bri'],
             'fecha_guardado': now.isoformat(),
-            'inc': b.get('nroincidencia_bd') or str(b.get('codigo_bd')),
+            'inc': identifier,  # Guardamos el correcto
             'fecha_asign_inc': b.get('fecha_asignacion_bd'),
             'sot': b.get('nrosot_bd'),
             'red_afect': b.get('red1_bd'),
@@ -236,21 +306,18 @@ def save_single():
             'subcategoria': d['item'].get('subcategoria'),
             'cod_material': d['item'].get('codigo'),
             'nombre_material': d['item'].get('descripcion'),
-            'origen_material': origen,  # <--- GUARDADO EN BD
+            'origen_material': origen,
             'precio_unit': price,
             'cant_material': cant,
             'moneda': 'D',
-            'tc': tc,
-            'subtotal': sub,
-            'total_soles': sub * tc,
+            'tc': 3.75,
+            'subtotal': cant * price,
+            'total_soles': (cant * price) * 3.75,
             'trabajo_concluido': b.get('estado_trabajo'),
             'porcentaje_ejecucion': 100 if b.get('is_cerrada') else 0,
-            'mes_liq': '',  # Se calculan si existen fechas
-            'sem_uso': '',
             'validado_oym': 'PENDIENTE'
         }
 
-        # Calcular mes/semana si hay fecha
         fa_str = b.get('fecha_asignacion_bd')
         if fa_str:
             try:
@@ -263,7 +330,6 @@ def save_single():
         final_res = supabase.table(Config.ACUMULADO_TABLE).insert([row]).execute()
         return jsonify({'ok': True, 'saved': final_res.data[0]})
     except Exception as e:
-        print(f"Error save: {e}")
         return jsonify({'error': str(e)}), 500
 
 

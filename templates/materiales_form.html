@@ -32,13 +32,22 @@
                     {% endif %}
                     <span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200">Ref: {{ bid }}</span>
                 </div>
-                <div class="text-[10px] font-bold text-slate-400 flex items-center gap-1"><i class="fa-regular fa-calendar"></i> {{ b.fecha_asignacion_bd|truncate(10, True, '') }}</div>
             </div>
 
             <div class="mb-4">
-                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Incidencia / Código BD</div>
+                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Incidencia / TAS / SOT</div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <h1 class="text-2xl font-black text-slate-800 leading-none">{{ b.nroincidencia_bd or 'S/N' }}</h1>
+                    <h1 class="text-2xl font-black text-slate-800 leading-none">
+                        {% if b.nroincidencia_bd %}
+                            {{ b.nroincidencia_bd }}
+                        {% elif b.nrotas_bd and b.nrotas_bd != 'NO TIENE' %}
+                            {{ b.nrotas_bd }}
+                        {% elif b.nrosot_bd and b.nrosot_bd != 'NO TIENE' %}
+                            {{ b.nrosot_bd }}
+                        {% else %}
+                            {{ b.codigo_bd }}
+                        {% endif %}
+                    </h1>
                     <span class="bg-slate-800 text-white px-2 py-1 rounded text-xs font-bold font-mono tracking-wide shadow-sm"><i class="fa-solid fa-database text-[10px] mr-1 text-slate-400"></i>{{ b.codigo_bd }}</span>
                 </div>
                 <div class="mt-2 text-sm font-medium text-slate-700 leading-snug border-l-2 border-blue-500 pl-2">{{ b.titulo_bd or 'Sin título registrado' }}</div>
@@ -96,14 +105,14 @@
                         <div class="flex-1 mr-2 overflow-hidden">
                             <div class="flex gap-2 mb-0.5">
                                 <span class="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded">{{ item.brigada_responsable }}</span>
-                                {% if item.origen_material == 'CICSA' %}
-                                    <span class="text-[9px] font-bold text-purple-600 bg-purple-50 px-1 rounded border border-purple-100">CICSA</span>
+                                {% if 'CICSA' in item.origen_material %}
+                                    <span class="text-[9px] font-bold text-blue-600 bg-blue-50 px-1 rounded border border-blue-100">CICSA</span>
                                 {% else %}
-                                    <span class="text-[9px] font-bold text-blue-600 bg-blue-50 px-1 rounded border border-blue-100">CLARO</span>
+                                    <span class="text-[9px] font-bold text-red-600 bg-red-50 px-1 rounded border border-red-100">CLARO</span>
                                 {% endif %}
                             </div>
                             <div class="font-bold text-xs text-slate-700 truncate">{{ item.nombre_material }}</div>
-                            <div class="text-[10px] text-slate-400">Cod: {{ item.cod_material }}</div>
+                            <div class="text-[10px] text-slate-400 font-mono">ID: {{ item.cod_material.lstrip('0') if item.cod_material else '' }}</div>
                         </div>
                         <div class="flex items-center gap-3">
                             <div class="font-black text-lg text-slate-800">{{ item.cant_material | int }}</div>
@@ -123,7 +132,7 @@
             <button onclick="closeModal()" class="absolute top-3 right-3 text-slate-300 hover:text-slate-500 p-2"><i class="fa-solid fa-xmark text-xl"></i></button>
             <div class="mb-4">
                 <div id="modal-origin-badge" class="inline-block text-[9px] font-bold px-2 py-0.5 rounded border mb-2">ORIGEN</div>
-                <div class="inline-block bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200 mb-2" id="modal-code">COD</div>
+                <div class="inline-block bg-slate-800 text-white text-[10px] font-bold px-2 py-0.5 rounded border border-slate-900 mb-2" id="modal-code">COD</div>
                 <h3 class="text-sm font-bold text-slate-800 leading-tight px-2" id="modal-desc">...</h3>
             </div>
             <div class="flex items-center justify-center gap-4 mb-6">
@@ -151,7 +160,7 @@
         searchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimer);
             const q = e.target.value.trim();
-            if(q.length < 3) { resultsDiv.innerHTML = ''; return; }
+            if(q.length < 2) { resultsDiv.innerHTML = '<div class="text-center py-6 opacity-40"><i class="fa-regular fa-keyboard text-3xl mb-2"></i><p class="text-xs">Escribe al menos 2 caracteres</p></div>'; return; }
             spinner.classList.remove('hidden');
             searchTimer = setTimeout(async () => {
                 try {
@@ -169,21 +178,30 @@
             data.forEach(item => {
                 const json = encodeURIComponent(JSON.stringify(item));
 
-                // Badge de origen
-                let badge = item.origen === 'CICSA'
-                    ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-purple-100 text-purple-600 border-purple-200">CICSA</span>'
-                    : '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-blue-100 text-blue-600 border-blue-200">CLARO</span>';
+                const origen = (item.origen || 'CLARO').toUpperCase();
 
-                html += `<div onclick="openModal('${json}')" class="card-material p-3 flex items-center justify-between cursor-pointer mb-2">
-                    <div class="flex-1 mr-3 overflow-hidden">
-                        <div class="flex gap-2 mb-1">
-                            ${badge}
-                            <span class="text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 rounded border border-slate-200">${item.codigo}</span>
-                        </div>
-                        <div class="font-bold text-xs text-slate-700 leading-snug truncate">${item.descripcion}</div>
-                        <div class="text-[9px] text-slate-400 mt-0.5">${item.categoria || ''}</div>
+                // Color Origen
+                let badge = origen.includes('CICSA')
+                    ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-blue-100 text-blue-600 border-blue-200">CICSA</span>'
+                    : '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-red-100 text-red-600 border-red-200">CLARO</span>';
+
+                let displayCode = item.codigo_visual || 'S/C';
+
+                html += `
+                <div onclick="openModal('${json}')" class="card-material p-3 mb-2 cursor-pointer border-l-4 ${origen.includes('CICSA') ? 'border-l-blue-500' : 'border-l-red-500'}">
+                    <div class="flex justify-between items-start mb-1">
+                        <div class="font-bold text-xs text-slate-800 leading-snug w-10/12">${item.descripcion}</div>
+                        <i class="fa-solid fa-plus-circle text-blue-500 text-lg"></i>
                     </div>
-                    <div class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center"><i class="fa-solid fa-plus text-xs"></i></div>
+                    <div class="flex items-center gap-2 mt-2">
+                        ${badge}
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-slate-100 text-slate-600 border-slate-300">
+                            AX: ${displayCode}
+                        </span>
+                    </div>
+                    <div class="text-[9px] text-slate-400 mt-1 uppercase">
+                        ${item.categoria || ''} ${item.subcategoria ? ' • ' + item.subcategoria : ''}
+                    </div>
                 </div>`;
             });
             resultsDiv.innerHTML = html;
@@ -193,16 +211,18 @@
 
         function openModal(json) {
             currentItem = JSON.parse(decodeURIComponent(json));
-            mCode.innerText = currentItem.codigo;
+            mCode.innerText = currentItem.codigo_visual || currentItem.codigo;
             mDesc.innerText = currentItem.descripcion;
             mQty.value = 1;
 
-            if(currentItem.origen === 'CICSA') {
-                mOrigin.innerText = 'MATERIAL CICSA';
-                mOrigin.className = 'inline-block text-[9px] font-bold px-2 py-0.5 rounded border mb-2 bg-purple-100 text-purple-700 border-purple-200';
-            } else {
-                mOrigin.innerText = 'MATERIAL CLARO';
+            const origen = (currentItem.origen || 'CLARO').toUpperCase();
+
+            if(origen.includes('CICSA')) {
+                mOrigin.innerText = 'CICSA';
                 mOrigin.className = 'inline-block text-[9px] font-bold px-2 py-0.5 rounded border mb-2 bg-blue-100 text-blue-700 border-blue-200';
+            } else {
+                mOrigin.innerText = 'CLARO';
+                mOrigin.className = 'inline-block text-[9px] font-bold px-2 py-0.5 rounded border mb-2 bg-red-100 text-red-700 border-red-200';
             }
 
             modal.classList.remove('hidden');
@@ -233,12 +253,14 @@
             document.getElementById('empty-history').style.display = 'none';
             const list = document.getElementById('history-list');
 
-            let badgeHist = item.origen_material === 'CICSA'
-                ? '<span class="text-[9px] font-bold bg-purple-50 text-purple-600 px-1 rounded border border-purple-100">CICSA</span>'
-                : '<span class="text-[9px] font-bold bg-blue-50 text-blue-600 px-1 rounded border border-blue-100">CLARO</span>';
+            const origen = (item.origen_material || 'CLARO').toUpperCase();
+
+            let badgeHist = origen.includes('CICSA')
+                ? '<span class="text-[9px] font-bold bg-blue-50 text-blue-600 px-1 rounded border border-blue-100">CICSA</span>'
+                : '<span class="text-[9px] font-bold bg-red-50 text-red-600 px-1 rounded border border-red-100">CLARO</span>';
 
             const div = document.createElement('div'); div.id = `row-${item.id}`; div.className = 'history-item bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between new-item';
-            div.innerHTML = `<div class="flex-1 mr-2 overflow-hidden"><div class="flex gap-2 mb-0.5"><span class="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded">${item.brigada_responsable}</span>${badgeHist}</div><div class="font-bold text-xs text-slate-700 truncate">${item.nombre_material}</div><div class="text-[10px] text-slate-400">Cod: ${item.cod_material}</div></div><div class="flex items-center gap-3"><div class="font-black text-lg text-slate-800">${parseInt(item.cant_material)}</div><button onclick="deleteItem(${item.id})" class="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition active:scale-90"><i class="fa-solid fa-trash-can text-xs"></i></button></div>`;
+            div.innerHTML = `<div class="flex-1 mr-2 overflow-hidden"><div class="flex gap-2 mb-0.5"><span class="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded">${item.brigada_responsable}</span>${badgeHist}</div><div class="font-bold text-xs text-slate-700 truncate">${item.nombre_material}</div><div class="text-[10px] text-slate-400">ID: ${item.cod_material.replace(/^0+/, '')}</div></div><div class="flex items-center gap-3"><div class="font-black text-lg text-slate-800">${parseInt(item.cant_material)}</div><button onclick="deleteItem(${item.id})" class="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition active:scale-90"><i class="fa-solid fa-trash-can text-xs"></i></button></div>`;
             list.insertBefore(div, list.firstChild);
         }
     </script>

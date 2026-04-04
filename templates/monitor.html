@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+{% block title %}Monitor de Coordinador | SysMateriales{% endblock %}
+{% block content %}
+<style>
+    body { background-color: #080e1e; }
+    .glass { background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; backdrop-filter: blur(12px); }
+    .glass-sm { background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; }
+    .th-cell { background: rgba(8,14,30,0.9); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .tr-row { border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer; transition: background 0.15s; }
+    .tr-row:hover { background: rgba(59,130,246,0.04); }
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.4); border-radius: 10px; }
+    .filter-input { background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.08); color: #f1f5f9; border-radius: 10px; padding: 7px 12px; font-size: 12px; outline: none; transition: border-color 0.2s; }
+    .filter-input:focus { border-color: rgba(59,130,246,0.6); }
+    .filter-input option { background: #1e293b; }
+    .status-ok   { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: #34d399; }
+    .status-pend { background: rgba(245,158,11,0.1);  border: 1px solid rgba(245,158,11,0.3);  color: #fbbf24; }
+</style>
+
+<div class="max-w-screen-2xl mx-auto px-5 py-8 fade-in">
+
+    <!-- CABECERA -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-5">
+        <div>
+            <h1 class="text-3xl font-black brand-font text-white flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-amber-600 to-orange-700 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                    <i class="fa-solid fa-radar text-base"></i>
+                </div>
+                Monitor de Coordinador
+            </h1>
+            <p class="text-slate-500 text-sm mt-1.5 ml-1">Supervisión de cumplimiento de registro de materiales por bitácora</p>
+        </div>
+        <div class="flex flex-wrap items-end gap-3">
+            <div class="flex flex-col gap-1">
+                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Zona</label>
+                <select id="filterZona" onchange="cargar()" class="filter-input w-40">
+                    <option value="">Todas</option>
+                    {% for z in zonas %}
+                    <option value="{{ z }}">{{ z }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex flex-col gap-1">
+                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Días atrás</label>
+                <select id="filterDias" onchange="cargar()" class="filter-input w-28">
+                    <option value="3">3 días</option>
+                    <option value="7" selected>7 días</option>
+                    <option value="14">14 días</option>
+                    <option value="30">30 días</option>
+                </select>
+            </div>
+            <div class="flex flex-col gap-1">
+                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Ver</label>
+                <select id="filterStatus" onchange="renderBitacoras()" class="filter-input w-44">
+                    <option value="all">Todas</option>
+                    <option value="pendiente">Sin Material</option>
+                    <option value="ok">Con Material</option>
+                </select>
+            </div>
+            <button onclick="cargar()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition">
+                <i class="fa-solid fa-arrows-rotate text-xs"></i> Actualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="glass p-5 flex items-center justify-between">
+            <div>
+                <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Bitácoras</div>
+                <div class="text-3xl font-black text-white" id="kpi-total">—</div>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-blue-500/15 flex items-center justify-center text-blue-400 text-xl"><i class="fa-solid fa-book-open"></i></div>
+        </div>
+        <div class="glass p-5 flex items-center justify-between border border-emerald-500/20">
+            <div>
+                <div class="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Con Material</div>
+                <div class="text-3xl font-black text-emerald-400" id="kpi-con">—</div>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-emerald-500/15 flex items-center justify-center text-emerald-400 text-xl"><i class="fa-solid fa-circle-check"></i></div>
+        </div>
+        <div class="glass p-5 flex items-center justify-between border border-amber-500/20">
+            <div>
+                <div class="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1">Sin Material</div>
+                <div class="text-3xl font-black text-amber-400" id="kpi-sin">—</div>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-amber-500/15 flex items-center justify-center text-amber-400 text-xl animate-pulse"><i class="fa-solid fa-circle-exclamation"></i></div>
+        </div>
+        <div class="glass p-5 flex items-center justify-between">
+            <div>
+                <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Cumplimiento</div>
+                <div class="text-3xl font-black text-white" id="kpi-cumpl">—</div>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-indigo-500/15 flex items-center justify-center text-indigo-400 text-xl"><i class="fa-solid fa-percent"></i></div>
+        </div>
+    </div>
+
+    <!-- TABLA -->
+    <div class="glass overflow-hidden">
+        <div class="px-6 py-4 border-b border-white/5 flex justify-between items-center">
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-list-check text-amber-400 text-xs"></i> Bitácoras en Curso — Estado de Registro de Materiales
+            </h2>
+            <div class="relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                <input type="text" id="searchTable" oninput="buscar()" placeholder="Buscar incidencia, brigada..." class="filter-input pl-8 w-56 text-xs py-2">
+            </div>
+        </div>
+
+        <div class="overflow-x-auto max-h-[65vh] custom-scroll">
+            <table class="w-full text-left text-xs whitespace-nowrap">
+                <thead>
+                    <tr class="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                        <th class="th-cell px-5 py-3">Estado</th>
+                        <th class="th-cell px-5 py-3">Incidencia</th>
+                        <th class="th-cell px-5 py-3">Zona</th>
+                        <th class="th-cell px-5 py-3">Brigada</th>
+                        <th class="th-cell px-5 py-3">Asignación</th>
+                        <th class="th-cell px-5 py-3">Tipo</th>
+                        <th class="th-cell px-5 py-3">Acceso Directo</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBitacoras">
+                    <tr><td colspan="7" class="px-5 py-16 text-center text-slate-500">
+                        <i class="fa-solid fa-circle-notch fa-spin text-2xl text-amber-500 block mb-3"></i>
+                        <span class="text-xs font-bold uppercase tracking-widest">Cargando radar...</span>
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let allBitacoras = [];
+
+    async function cargar() {
+        const zona  = document.getElementById('filterZona').value;
+        const dias  = document.getElementById('filterDias').value;
+
+        document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="7" class="px-5 py-16 text-center text-slate-500">
+            <i class="fa-solid fa-circle-notch fa-spin text-2xl text-amber-500 block mb-3"></i>
+            <span class="text-xs font-bold uppercase tracking-widest">Escaneando bitácoras...</span></td></tr>`;
+
+        let url = `/api/bitacoras-pendientes?dias=${dias}`;
+        if(zona) url += `&zona=${encodeURIComponent(zona)}`;
+
+        try {
+            const res = await fetch(url);
+            allBitacoras = await res.json();
+            renderBitacoras();
+        } catch(e) {
+            document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="7" class="p-10 text-center text-red-400 font-bold">Error de conexión</td></tr>`;
+        }
+    }
+
+    function renderBitacoras() {
+        const statusFilter = document.getElementById('filterStatus').value;
+        const q = document.getElementById('searchTable').value.toLowerCase();
+
+        let data = allBitacoras;
+        if(statusFilter === 'pendiente') data = data.filter(b => !b.tiene_material);
+        if(statusFilter === 'ok') data = data.filter(b => b.tiene_material);
+        if(q.length >= 2) data = data.filter(b => JSON.stringify(b).toLowerCase().includes(q));
+
+        // Sort: sin material primero
+        data.sort((a, b) => {
+            if(a.tiene_material !== b.tiene_material) return a.tiene_material ? 1 : -1;
+            return 0;
+        });
+
+        const con  = allBitacoras.filter(b => b.tiene_material).length;
+        const sin  = allBitacoras.filter(b => !b.tiene_material).length;
+        const total = allBitacoras.length;
+        const cumpl = total ? Math.round((con / total) * 100) : 0;
+
+        document.getElementById('kpi-total').textContent = total;
+        document.getElementById('kpi-con').textContent = con;
+        document.getElementById('kpi-sin').textContent = sin;
+        document.getElementById('kpi-cumpl').textContent = cumpl + '%';
+
+        if(!data.length) {
+            document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="7" class="px-5 py-12 text-center text-slate-600 text-xs font-bold uppercase tracking-widest">Sin bitácoras para los filtros aplicados</td></tr>`;
+            return;
+        }
+
+        let html = '';
+        data.forEach(b => {
+            const statusBadge = b.tiene_material
+                ? `<span class="status-ok text-[9px] font-black px-2 py-1 rounded-lg flex items-center gap-1 w-fit"><i class="fa-solid fa-check text-[8px]"></i>Registrado</span>`
+                : `<span class="status-pend text-[9px] font-black px-2 py-1 rounded-lg flex items-center gap-1 w-fit animate-pulse"><i class="fa-solid fa-circle-exclamation text-[8px]"></i>Pendiente</span>`;
+
+            const fecha = b.fecha_asignacion_bd
+                ? new Date(b.fecha_asignacion_bd).toLocaleDateString('es-PE', {day:'2-digit', month:'short'})
+                : '—';
+
+            html += `<tr class="tr-row">
+                <td class="px-5 py-3">${statusBadge}</td>
+                <td class="px-5 py-3">
+                    <div class="font-black brand-font text-slate-100 text-sm">${b.identificador || b.id}</div>
+                    <div class="text-[9px] text-slate-600">ID: ${b.id}</div>
+                </td>
+                <td class="px-5 py-3 text-slate-400 text-[11px] font-semibold">${b.zona_bd || '—'}</td>
+                <td class="px-5 py-3">
+                    <span class="bg-slate-800/80 text-slate-300 border border-slate-700/60 px-2 py-1 rounded-lg text-[10px] font-black uppercase">${b.bri1_oficial || '—'}</span>
+                </td>
+                <td class="px-5 py-3 font-mono text-slate-400">${fecha}</td>
+                <td class="px-5 py-3 text-slate-400 text-[11px]">${(b.estado_textual_bd || '').substring(0, 20)}</td>
+                <td class="px-5 py-3">
+                    <a href="/materiales/${b.id}" target="_blank" class="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 font-bold text-[11px] transition">
+                        <i class="fa-solid fa-external-link-alt text-[9px]"></i>Abrir Formulario
+                    </a>
+                </td>
+            </tr>`;
+        });
+
+        document.getElementById('tableBitacoras').innerHTML = html;
+    }
+
+    function buscar() { renderBitacoras(); }
+    setInterval(cargar, 60000);
+    cargar();
+</script>
+{% endblock %}

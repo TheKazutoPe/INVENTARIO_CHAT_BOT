@@ -1,0 +1,545 @@
+{% extends 'base.html' %}
+{% block title %}Almacén Nacional | SysMateriales{% endblock %}
+{% block content %}
+<style>
+    body { background-color: #080e1e; }
+    .glass { background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; backdrop-filter: blur(12px); }
+    .glass-sm { background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; }
+    .progress-track { background: rgba(255,255,255,0.05); border-radius: 999px; overflow: hidden; height: 6px; }
+    .progress-fill { height: 100%; border-radius: 999px; transition: width 1.2s cubic-bezier(0.4,0,0.2,1); }
+    .th-cell { background: rgba(8,14,30,0.9); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .tr-row { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s; }
+    .tr-row:hover { background: rgba(59,130,246,0.04); }
+    .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.4); border-radius: 10px; }
+    .alerta-card { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 12px; }
+    .alerta-card-amber { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 12px; }
+    .filter-input { background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.08); color: #f1f5f9; border-radius: 10px; padding: 7px 12px; font-size: 12px; outline: none; transition: border-color 0.2s; }
+    .filter-input:focus { border-color: rgba(59,130,246,0.6); }
+    .filter-input option { background: #1e293b; }
+    .dropzone { background: rgba(15,23,42,0.4); border: 2px dashed rgba(99,102,241,0.3); border-radius: 14px; transition: all 0.3s; }
+    .dropzone.over { border-color: #3b82f6; background: rgba(59,130,246,0.08); }
+    /* Zona Badge Colors */
+    .zona-norte { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); color: #60a5fa; }
+    .zona-sur   { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: #34d399; }
+    .zona-centro{ background: rgba(168,85,247,0.1); border-color: rgba(168,85,247,0.3); color: #c084fc; }
+    .zona-other { background: rgba(148,163,184,0.1); border-color: rgba(148,163,184,0.3); color: #94a3b8; }
+</style>
+
+<div class="max-w-screen-2xl mx-auto px-5 py-8 fade-in">
+
+    <!-- CABECERA -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-5">
+        <div>
+            <h1 class="text-3xl font-black brand-font text-white flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                    <i class="fa-solid fa-boxes-stacked text-base"></i>
+                </div>
+                Dashboard de Almacén
+            </h1>
+            <p class="text-slate-500 text-sm mt-1.5 ml-1">Control en vivo de inventarios por brigada y zona nacional</p>
+        </div>
+        <div class="flex flex-wrap gap-3 items-center">
+            <!-- Filtro zona -->
+            <select id="filterZona" onchange="cambiarZona()" class="filter-input w-40">
+                <option value="">Todas las zonas</option>
+                {% for z in zonas %}
+                <option value="{{ z }}">{{ z }}</option>
+                {% endfor %}
+            </select>
+            <button onclick="openDespachoModal()" class="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-blue-600/20">
+                <i class="fa-solid fa-boxes-packing"></i> Despacho
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI ROW -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="kpiRow">
+        <div class="glass p-5 flex items-center justify-between">
+            <div>
+                <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Brigadas</div>
+                <div class="text-3xl font-black text-white" id="kpi-brigadas">0</div>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-blue-500/15 flex items-center justify-center text-blue-400 text-xl"><i class="fa-solid fa-truck-fast"></i></div>
+        </div>
+        <div class="glass p-5 flex items-center justify-between border border-red-500/20">
+            <div>
+                <div class="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">Alertas Críticas</div>
+                <div class="text-3xl font-black text-red-500" id="kpi-alertas">0</div>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center text-red-400 text-xl animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        </div>
+        <div class="glass p-5 flex items-center justify-between">
+            <div>
+                <div class="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1">Stock Bajo (≤40%)</div>
+                <div class="text-3xl font-black text-amber-400" id="kpi-bajo">0</div>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-amber-500/15 flex items-center justify-center text-amber-400 text-xl"><i class="fa-solid fa-battery-quarter"></i></div>
+        </div>
+        <div class="glass p-5 flex items-center justify-between">
+            <div>
+                <div class="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Unidades Totales</div>
+                <div class="text-3xl font-black text-emerald-400" id="kpi-total">0</div>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-emerald-500/15 flex items-center justify-center text-emerald-400 text-xl"><i class="fa-solid fa-cubes"></i></div>
+        </div>
+    </div>
+
+    <!-- PANEL ALERTAS CRITICAS -->
+    <div id="panelAlertas" class="mb-6 hidden">
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+            <h2 class="text-sm font-black text-red-400 uppercase tracking-widest">Alertas Críticas — Requieren Reabastecimiento Inmediato</h2>
+        </div>
+        <div id="alertasGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+    </div>
+
+    <!-- SALUD POR ZONA (Gráfico) -->
+    <div id="saludZonas" class="glass mb-6 p-6 hidden">
+        <h2 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
+            <i class="fa-solid fa-signal text-indigo-400"></i> Salud de Stock por Zona
+        </h2>
+        <div id="zonaCharts" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4"></div>
+    </div>
+
+    <!-- CARGA MASIVA -->
+    <div class="glass mb-6 overflow-hidden">
+        <div class="p-1">
+            <div id="drop-zone" class="dropzone p-6 text-center cursor-pointer group" onclick="document.getElementById('fileInput').click()">
+                <input type="file" id="fileInput" class="hidden" accept=".xlsx,.xls">
+                <div class="relative z-10 pointer-events-none">
+                    <i class="fa-solid fa-file-excel text-4xl text-emerald-400 mb-3 group-hover:-translate-y-1 transition-transform duration-300 inline-block"></i>
+                    <h3 class="text-lg font-black text-emerald-400 mb-1">Importar Matriz de Despacho (.xlsx)</h3>
+                    <p class="text-slate-500 text-xs">Arrastra y suelta o haz clic · Columnas requeridas: BRIGADA, CÓDIGO/AX, CANTIDAD</p>
+                </div>
+                <div id="uploading-ui" class="absolute inset-0 bg-slate-900/90 flex-col items-center justify-center z-20 hidden rounded-xl">
+                    <i class="fa-solid fa-satellite-dish fa-spin text-3xl text-blue-500 mb-2"></i>
+                    <p class="text-blue-400 font-bold text-xs tracking-widest uppercase animate-pulse">Procesando Matriz...</p>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 py-3 border-t border-white/5 flex justify-between items-center" style="background:rgba(15,23,42,0.4)">
+            <span class="text-[10px] text-slate-600 font-semibold"><i class="fa-solid fa-shield-halved mr-1 text-blue-500"></i>Procesamiento seguro en servidor</span>
+            <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-400">
+                <input type="checkbox" id="chkReemplazo" class="w-3.5 h-3.5 rounded text-blue-500 focus:ring-blue-500 bg-slate-700 border-slate-600">
+                Reemplazo físico (sobrescribir)
+            </label>
+        </div>
+    </div>
+
+    <!-- TABLA CENTRAL DE STOCK -->
+    <div class="glass overflow-hidden">
+        <div class="px-6 py-4 border-b border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-regular fa-hard-drive text-indigo-400 text-sm"></i> Inventario por Brigada
+            </h2>
+            <div class="relative">
+                <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                <input type="text" id="searchBrigada" oninput="filterStock()" placeholder="Brigada o material..." class="filter-input pl-8 w-60">
+            </div>
+        </div>
+
+        <div class="overflow-x-auto max-h-[60vh] overflow-y-auto custom-scroll">
+            <table class="w-full text-left text-xs whitespace-nowrap" id="stockTable">
+                <thead>
+                    <tr class="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                        <th class="th-cell px-5 py-3">Zona</th>
+                        <th class="th-cell px-5 py-3">Brigada</th>
+                        <th class="th-cell px-5 py-3">Código</th>
+                        <th class="th-cell px-5 py-3 w-1/3">Material</th>
+                        <th class="th-cell px-5 py-3 text-center w-40">Salud</th>
+                        <th class="th-cell px-5 py-3 text-right">Mínimo</th>
+                        <th class="th-cell px-5 py-3 text-right">Existencias</th>
+                    </tr>
+                </thead>
+                <tbody id="stockTbody">
+                    <tr><td colspan="6" class="px-5 py-12 text-center text-slate-500">
+                        <i class="fa-solid fa-spinner fa-spin text-blue-500 text-2xl block mb-3"></i>
+                        <span class="text-xs font-bold uppercase tracking-widest">Sincronizando...</span>
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ─── MODAL DE DESPACHO INDIVIDUAL ─── -->
+<div id="modalDespacho" class="fixed inset-0 bg-black/70 backdrop-blur-md hidden items-center justify-center z-50 transition-opacity opacity-0 duration-300">
+    <div class="glass w-[92%] max-w-lg transform scale-95 transition-all duration-300" id="modalBox" style="border-radius:20px;">
+        <div class="border-b border-white/5 px-6 py-4 flex justify-between items-center" style="background:rgba(15,23,42,0.5); border-radius:20px 20px 0 0;">
+            <h3 class="text-white font-black text-base brand-font"><i class="fa-solid fa-barcode text-blue-400 mr-2"></i>Despacho de Carga</h3>
+            <button onclick="closeDespachoModal()" class="text-slate-500 hover:text-white transition text-xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-6">
+            <!-- Buscador material -->
+            <div class="mb-5 relative">
+                <label class="block text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Buscar Material (AX, SAP o Nombre)</label>
+                <input type="text" id="descSearch" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="Escribe para buscar..." autocomplete="off">
+                <div id="searchResults" class="absolute w-full bg-slate-800 border border-white/10 rounded-xl shadow-2xl max-h-56 overflow-y-auto hidden z-50 mt-2 custom-scroll"></div>
+            </div>
+
+            <div id="selectedItemBlock" class="hidden mb-5 p-4 bg-blue-900/20 border border-blue-500/20 rounded-xl">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Material Fijado <span id="selCod" class="text-white bg-blue-500/20 px-2 py-0.5 rounded ml-1 font-mono"></span></div>
+                        <div class="text-sm font-semibold text-slate-200" id="selDesc"></div>
+                    </div>
+                    <button onclick="clearSelection()" class="text-slate-500 hover:text-red-400 transition ml-4"><i class="fa-solid fa-times-circle text-lg"></i></button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Brigada Destino</label>
+                    <select id="brigadaDestino" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none uppercase appearance-none cursor-pointer">
+                        <option value="" disabled selected>-- SELECCIONAR --</option>
+                        {% for b in brigadas %}
+                        <option value="{{ b }}">{{ b }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Cantidad</label>
+                    <input type="number" id="cantDespacho" min="0.1" step="0.1" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white text-right font-mono font-black focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="0">
+                </div>
+            </div>
+
+            <button id="btnGuardarDespacho" onclick="guardarDespacho()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black tracking-wider py-4 rounded-xl shadow-lg shadow-indigo-900/30 transition transform hover:-translate-y-0.5">
+                CONFIRMAR DESPACHO <i class="fa-solid fa-arrow-right-arrow-left ml-2"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let globalStock = [], curItem = null;
+    const zoneColors = { 'NORTE': 'zona-norte', 'SUR': 'zona-sur', 'CENTRO': 'zona-centro' };
+    function getZoneClass(z) { return zoneColors[(z || '').toUpperCase()] || 'zona-other'; }
+
+    // ─── CARGA DE STOCK ───
+    async function loadData() {
+        const zona = document.getElementById('filterZona').value;
+        let url = '/api/dashboard-stock-data';
+        if(zona) url += '?zona=' + encodeURIComponent(zona);
+        try {
+            const [stockRes, alertRes, zonaRes] = await Promise.all([
+                fetch(url).then(r => r.json()),
+                fetch('/api/alertas-criticas').then(r => r.json()),
+                fetch('/api/stats-por-zona').then(r => r.json())
+            ]);
+            globalStock = Array.isArray(stockRes) ? stockRes : [];
+            renderTable(globalStock);
+            renderAlertas(Array.isArray(alertRes) ? alertRes : []);
+            renderZonaStats(Array.isArray(zonaRes) ? zonaRes : []);
+        } catch(e) { console.error(e); }
+    }
+
+    function cambiarZona() { loadData(); }
+
+    // ─── RENDER TABLA ───
+    function renderTable(data) {
+        const q = document.getElementById('searchBrigada').value.toUpperCase().trim();
+        const filtered = q.length < 2 ? data : data.filter(r =>
+            (r.brigada || '').toUpperCase().includes(q) ||
+            (r.cod_material || '').toUpperCase().includes(q) ||
+            (r.nombre_material || '').toUpperCase().includes(q)
+        );
+
+        // Sort: por zona, brigada, después más crítico primero
+        filtered.sort((a, b) => {
+            if ((a.zona || '') !== (b.zona || '')) return (a.zona || '').localeCompare(b.zona || '');
+            if (a.brigada !== b.brigada) return a.brigada.localeCompare(b.brigada);
+            // Ordenar por porcentaje ascendente (más crítico primero)
+            const pa = (a.stock_actual / (a.stock_inicial || 1)) * 100;
+            const pb = (b.stock_actual / (b.stock_inicial || 1)) * 100;
+            return pa - pb;
+        });
+
+        let html = '';
+        let uBrigadas = new Set(), totalItems = 0, cQuiebres = 0, cBajo = 0;
+
+        filtered.forEach(row => {
+            const actual  = parseFloat(row.stock_actual || 0);
+            const inicial = parseFloat(row.stock_inicial || 0);
+            const minimo  = parseFloat(row.stock_minimo || 0);
+            let ptc = inicial > 0 ? Math.min((actual / inicial) * 100, 100) : (actual <= 0 ? 0 : 100);
+
+            // Umbral real: stock_minimo si existe, si no 20% del inicial
+            const umbral = minimo > 0 ? minimo : (inicial * 0.20);
+            const esCritico = actual <= umbral;
+            const esBajo    = !esCritico && (inicial > 0) && (actual <= inicial * 0.40);
+
+            uBrigadas.add(row.brigada);
+            totalItems += actual;
+            if(esCritico) cQuiebres++;
+            if(esCritico || esBajo) cBajo++;
+
+            let barColor = 'bg-emerald-500', txtColor = 'text-emerald-400', glow = '';
+            if(esCritico) {
+                barColor = 'bg-red-500 animate-pulse'; txtColor = 'text-red-400 font-black';
+                glow = 'shadow-[0_0_12px_rgba(239,68,68,0.6)]';
+            } else if(esBajo) {
+                barColor = 'bg-amber-400'; txtColor = 'text-amber-400 font-bold';
+            }
+
+            const zona   = row.zona || 'S/Z';
+            const zClass = getZoneClass(zona);
+            const minimoLabel = minimo > 0
+                ? `<span class="text-[9px] font-mono font-bold text-amber-400">${minimo.toLocaleString('es-PE',{maximumFractionDigits:1})}</span>`
+                : `<span class="text-[9px] text-slate-600 italic">20%</span>`;
+
+            html += `<tr class="tr-row">
+                <td class="px-5 py-3">
+                    <span class="text-[9px] font-black px-2 py-1 rounded-lg border ${zClass}">${zona}</span>
+                </td>
+                <td class="px-5 py-3">
+                    <span class="bg-slate-800/80 text-slate-300 border border-slate-700/60 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide">
+                        <i class="fa-solid fa-user-astronaut text-slate-500 mr-1 text-[9px]"></i>${row.brigada}
+                    </span>
+                </td>
+                <td class="px-5 py-3 font-mono text-blue-300 font-bold text-[10px] tracking-wider">${(row.cod_material || '').replace(/^0+/, '')}</td>
+                <td class="px-5 py-3 max-w-[220px]">
+                    <div class="truncate font-semibold text-slate-200 text-[11px]" title="${row.nombre_material}">${row.nombre_material}</div>
+                </td>
+                <td class="px-5 py-3 w-40">
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 progress-track">
+                            <div class="progress-fill ${barColor} ${glow}" style="width:${ptc}%"></div>
+                        </div>
+                        <span class="text-[10px] font-bold ${txtColor} w-8 text-right shrink-0">${ptc.toFixed(0)}%</span>
+                    </div>
+                </td>
+                <td class="px-5 py-3 text-right cursor-pointer" onclick="editarMinimo(${row.id}, '${row.brigada}', '${row.nombre_material}', ${minimo})" title="Clic para editar umbral mínimo">
+                    ${minimoLabel} <i class="fa-solid fa-pen text-[8px] text-slate-600 hover:text-white ml-1"></i>
+                </td>
+                <td class="px-5 py-3 text-right">
+                    <span class="text-xl font-black ${txtColor} cursor-pointer tracking-tighter" onclick="editarDesfase(${row.id}, '${row.brigada}', '${row.nombre_material}', ${actual})">
+                        ${actual.toLocaleString('es-PE', {maximumFractionDigits: 1})}
+                        <i class="fa-solid fa-pen text-[9px] text-slate-600 hover:text-white transition ml-1"></i>
+                    </span>
+                </td>
+            </tr>`;
+        });
+
+        if(!html) html = `<tr><td colspan="6" class="px-5 py-12 text-center text-slate-600 text-xs font-bold uppercase tracking-widest">Sin resultados</td></tr>`;
+        document.getElementById('stockTbody').innerHTML = html;
+
+        // KPIs
+        document.getElementById('kpi-brigadas').textContent = uBrigadas.size;
+        document.getElementById('kpi-total').textContent = totalItems.toLocaleString('es-PE', {maximumFractionDigits: 0});
+        document.getElementById('kpi-alertas').textContent = cQuiebres;
+        document.getElementById('kpi-bajo').textContent = cBajo;
+    }
+
+    // ─── PANEL ALERTAS ───
+    function renderAlertas(data) {
+        const panel = document.getElementById('panelAlertas');
+        const grid = document.getElementById('alertasGrid');
+
+        if(!data.length) { panel.classList.add('hidden'); return; }
+        panel.classList.remove('hidden');
+
+        const top = data.slice(0, 12);
+        grid.innerHTML = top.map(r => {
+            const ptc = r.porcentaje;
+            const isZero = ptc === 0;
+            const cardClass = isZero ? 'alerta-card' : 'alerta-card-amber';
+            const dotClass = isZero ? 'bg-red-500 animate-ping' : 'bg-amber-500 animate-ping';
+            const ptcClass = isZero ? 'text-red-400' : 'text-amber-400';
+            return `<div class="${cardClass} p-4">
+                <div class="flex items-start justify-between mb-2">
+                    <div>
+                        <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">${r.zona || 'S/Z'}</span>
+                        <div class="text-[11px] font-black text-slate-200 uppercase mt-0.5">${r.brigada}</div>
+                    </div>
+                    <div class="relative w-3 h-3 mt-1">
+                        <span class="absolute inline-flex h-full w-full rounded-full ${dotClass} opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 ${isZero ? 'bg-red-500' : 'bg-amber-500'}"></span>
+                    </div>
+                </div>
+                <div class="text-[10px] font-semibold text-slate-400 truncate mb-2">${r.nombre_material}</div>
+                <div class="flex items-end justify-between">
+                    <span class="font-mono text-[9px] text-slate-600">${(r.cod_material || '').replace(/^0+/, '')}</span>
+                    <div class="text-right">
+                        <div class="text-xl font-black ${ptcClass}">${ptc}%</div>
+                        <div class="text-[9px] text-slate-500">Quedan: ${parseFloat(r.stock_actual).toLocaleString('es-PE', {maximumFractionDigits: 1})} u</div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    // ─── SALUD POR ZONA ───
+    function renderZonaStats(data) {
+        const el = document.getElementById('saludZonas');
+        const charts = document.getElementById('zonaCharts');
+        if(!data.length) { el.classList.add('hidden'); return; }
+        el.classList.remove('hidden');
+
+        charts.innerHTML = data.map(z => {
+            const ptc = z.porcentaje_promedio;
+            const zClass = getZoneClass(z.zona);
+            let barBg = 'bg-emerald-500';
+            if(ptc <= 20) barBg = 'bg-red-500 animate-pulse';
+            else if(ptc <= 40) barBg = 'bg-amber-400';
+            return `<div class="glass-sm p-4 text-center">
+                <span class="text-[9px] font-black px-2 py-1 rounded-lg border ${zClass} mb-3 inline-block">${z.zona}</span>
+                <div class="text-2xl font-black text-white brand-font">${ptc}%</div>
+                <div class="progress-track my-2">
+                    <div class="progress-fill ${barBg}" style="width:${ptc}%"></div>
+                </div>
+                <div class="flex justify-between text-[9px] text-slate-600 font-bold">
+                    <span><i class="fa-solid fa-triangle-exclamation text-red-500 mr-1"></i>${z.items_criticos} crít.</span>
+                    <span>${z.total_items} items</span>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function filterStock() { renderTable(globalStock); }
+    setInterval(loadData, 20000);
+    loadData();
+
+    // ─── DRAG AND DROP ───
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('fileInput');
+    ['dragenter','dragover','dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }));
+    ['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.add('over')));
+    ['dragleave','drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('over')));
+    dropZone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+    fileInput.addEventListener('change', function() { handleFiles(this.files); });
+
+    async function handleFiles(files) {
+        if(!files.length) return;
+        const f = files[0];
+        if(!f.name.toLowerCase().match(/\.xlsx?$/)) { alert('Usa un archivo .xlsx'); return; }
+        const esR = document.getElementById('chkReemplazo').checked;
+        const msg = esR ? '⚠️ MODO REEMPLAZO: se sobrescribirán los saldos actuales. ¿Confirmas?' : '¿Cargar despacho nominal (suma a saldos existentes)?';
+        if(!confirm(msg)) return;
+
+        const ui = document.getElementById('uploading-ui');
+        ui.classList.remove('hidden'); ui.classList.add('flex');
+
+        const fd = new FormData();
+        fd.append('file', f);
+        if(esR) fd.append('modo', 'reemplazar');
+
+        try {
+            const r = await fetch('/api/despacho-masivo', { method: 'POST', body: fd });
+            const d = await r.json();
+            if(d.ok) { alert('✅ ' + d.msg); loadData(); }
+            else alert('❌ ' + d.error);
+        } catch(e) { alert('❌ Error de red.'); }
+        finally {
+            ui.classList.add('hidden'); ui.classList.remove('flex');
+            fileInput.value = '';
+        }
+    }
+
+    // ─── MODAL DESPACHO ───
+    const modalD = document.getElementById('modalDespacho');
+    const mBox = document.getElementById('modalBox');
+    const inputDesc = document.getElementById('descSearch');
+    const results = document.getElementById('searchResults');
+
+    function openDespachoModal() {
+        modalD.classList.remove('hidden'); modalD.classList.add('flex');
+        setTimeout(() => { modalD.classList.remove('opacity-0'); mBox.classList.remove('scale-95'); inputDesc.focus(); }, 10);
+    }
+    function closeDespachoModal() {
+        modalD.classList.add('opacity-0'); mBox.classList.add('scale-95');
+        setTimeout(() => { modalD.classList.add('hidden'); modalD.classList.remove('flex'); clearSelection(); document.getElementById('cantDespacho').value = ''; }, 300);
+    }
+
+    inputDesc.addEventListener('input', async (e) => {
+        const q = e.target.value.trim();
+        if(q.length < 3) { results.classList.add('hidden'); return; }
+        try {
+            const res = await fetch('/api/search?q=' + encodeURIComponent(q));
+            const data = await res.json();
+            results.innerHTML = '';
+            if(!data.length) {
+                results.innerHTML = '<div class="p-4 text-xs text-slate-500 text-center font-bold uppercase tracking-widest">Sin resultados</div>';
+            } else {
+                data.forEach(it => {
+                    const d = document.createElement('div');
+                    d.className = 'p-3 border-b border-white/5 hover:bg-blue-600/15 cursor-pointer transition last:border-0';
+                    d.innerHTML = `<div class="text-blue-400 text-[10px] font-black">AX: ${it.codigo_visual.replace(/^0+/,'')}</div>
+                        <div class="text-slate-200 text-xs font-semibold mt-0.5 leading-tight">${it.descripcion}</div>`;
+                    d.onclick = () => selectItem(it);
+                    results.appendChild(d);
+                });
+            }
+            results.classList.remove('hidden');
+        } catch(e) {}
+    });
+
+    function selectItem(it) {
+        curItem = it;
+        document.getElementById('selCod').textContent = it.codigo_visual.replace(/^0+/,'');
+        document.getElementById('selDesc').textContent = it.descripcion;
+        document.getElementById('selectedItemBlock').classList.remove('hidden');
+        inputDesc.classList.add('hidden');
+        results.classList.add('hidden');
+        document.getElementById('brigadaDestino').focus();
+    }
+    function clearSelection() {
+        curItem = null;
+        document.getElementById('selectedItemBlock').classList.add('hidden');
+        inputDesc.classList.remove('hidden');
+        inputDesc.value = '';
+    }
+
+    async function guardarDespacho() {
+        if(!curItem) return alert('⚠️ Busca y fija el material.');
+        const bri = document.getElementById('brigadaDestino').value.trim();
+        const cant = parseFloat(document.getElementById('cantDespacho').value);
+        if(!bri) return alert('⚠️ Selecciona la brigada destino.');
+        if(!cant || cant <= 0) return alert('⚠️ Cantidad inválida.');
+
+        const btn = document.getElementById('btnGuardarDespacho');
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Procesando...';
+        btn.disabled = true;
+
+        try {
+            const r = await fetch('/api/despachar-stock', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ brigada: bri, cod_material: curItem.codigo_visual, nombre_material: curItem.descripcion, cantidad: cant })
+            });
+            const d = await r.json();
+            if(d.ok) { closeDespachoModal(); loadData(); }
+            else alert('❌ ' + d.error);
+        } catch(e) { alert('❌ Error de red.'); }
+        finally {
+            btn.innerHTML = 'CONFIRMAR DESPACHO <i class="fa-solid fa-arrow-right-arrow-left ml-2"></i>';
+            btn.disabled = false;
+        }
+    }
+
+    async function editarDesfase(id, brigada, material, actual) {
+        const nvo = prompt(`Ajuste Manual\n\n[${brigada}]\n${material}\n\nStock sensor: ${actual}\nIngresa el valor físico real:`, actual);
+        if(nvo === null || nvo === '') return;
+        const val = parseFloat(nvo);
+        if(isNaN(val) || val < 0) return alert('❌ Valor inválido.');
+        try {
+            const r = await fetch('/api/corregir-stock', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, nuevo_stock: val}) });
+            const d = await r.json();
+            if(d.ok) loadData();
+            else alert('❌ ' + d.error);
+        } catch(e) { alert('❌ Error de conexión.'); }
+    }
+
+    async function editarMinimo(id, brigada, material, minimoActual) {
+        const nvo = prompt(`⚠️ Umbral Mínimo de Alerta\n\n[${brigada}]\n${material}\n\nMínimo actual: ${minimoActual > 0 ? minimoActual + ' unidades' : 'Sin definir (usa 20% automático)'}\n\nIngresa la cantidad mínima que debe tener la brigada:`, minimoActual || '');
+        if(nvo === null || nvo === '') return;
+        const val = parseFloat(nvo);
+        if(isNaN(val) || val < 0) return alert('❌ Valor inválido.');
+        try {
+            const r = await fetch('/api/ajustar-minimo', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, stock_minimo: val}) });
+            const d = await r.json();
+            if(d.ok) { loadData(); }
+            else alert('❌ ' + d.error);
+        } catch(e) { alert('❌ Error de conexión.'); }
+    }
+</script>
+{% endblock %}

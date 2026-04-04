@@ -3,45 +3,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Materiales</title>
-    
+    <title>{% block title %}SysMateriales CICSA{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
-        
-        /* Scrollbar moderno */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        
-        /* Animación de entrada */
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        /* ── PALETA CICSA SISTEMA ─────────────────────────────── */
+        :root {
+            --navy-950: #05091a;
+            --navy-900: #080e1e;
+            --navy-800: #0c1631;
+            --navy-700: #0f2557;
+            --cicsa-blue: #2563eb;
+            --cicsa-sky:  #38bdf8;
+            --cicsa-glow: rgba(37, 99, 235, 0.18);
+        }
+
+        * { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, h4, .brand-font { font-family: 'Outfit', sans-serif; }
+
+        /* Fondo CICSA: navy profundo con glow central */
+        body {
+            background-color: var(--navy-950);
+            background-image:
+                radial-gradient(ellipse 80% 50% at 50% -10%, rgba(37,99,235,0.12) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 40% at 80% 100%, rgba(56,189,248,0.06) 0%, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        /* Scrollbar CICSA */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: var(--navy-800); }
+        ::-webkit-scrollbar-thumb { background: rgba(37,99,235,0.5); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--cicsa-sky); }
+
+        /* Animaciones */
+        .fade-in { animation: fadeIn 0.35s ease-in-out; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+        /* Glow utilities */
+        .glow-blue { box-shadow: 0 0 24px rgba(37,99,235,0.35), 0 0 4px rgba(56,189,248,0.2); }
+        .glow-sky  { box-shadow: 0 0 20px rgba(56,189,248,0.3); }
+        .text-gradient { background: linear-gradient(135deg, var(--cicsa-sky), #818cf8); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+
+        /* Navbar con gradiente CICSA */
+        .navbar-cicsa {
+            background: linear-gradient(135deg, var(--navy-950) 0%, var(--navy-800) 50%, rgba(15,37,87,0.95) 100%);
+            border-bottom: 1px solid rgba(56,189,248,0.12);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        /* Nav links con interactividad */
+        .nav-link {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px; left: 50%; right: 50%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--cicsa-blue), var(--cicsa-sky));
+            border-radius: 2px;
+            transition: all 0.25s ease;
+        }
+        .nav-link:hover::after,
+        .nav-link.active::after { left: 12px; right: 12px; }
+        .nav-link.active { color: white !important; background: rgba(37,99,235,0.12); }
+
+        /* Badge de rol */
+        .role-badge-admin { background: rgba(37,99,235,0.2); color: #60a5fa; border: 1px solid rgba(37,99,235,0.35); }
+        .role-badge-user  { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
+
+        /* Separador con brillo CICSA */
+        .cicsa-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(56,189,248,0.3), transparent);
+        }
+
+        /* Pulse indicator activo */
+        @keyframes pulseDot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50%       { opacity: 0.5; transform: scale(0.7); }
+        }
+        .pulse-dot { animation: pulseDot 2s infinite; }
     </style>
 </head>
-<body class="text-slate-800 antialiased">
-    <nav class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-50">
-        <div class="container mx-auto px-4 h-16 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <div class="bg-blue-600 text-white p-2 rounded-lg">
-                    <i class="fa-solid fa-layer-group"></i>
+<body class="text-slate-100 antialiased min-h-screen">
+
+    <!-- NAVBAR CICSA -->
+    <nav class="navbar-cicsa sticky top-0 z-50">
+        <div class="max-w-screen-2xl mx-auto px-5 h-16 flex items-center justify-between">
+
+            <!-- Logo / Marca -->
+            <a href="/reportes" class="flex items-center gap-3 group">
+                <!-- Logo Carso reemplaza el icono azul -->
+                <img src="{{ url_for('static', filename='logo_carso.png') }}"
+                     alt="Carso"
+                     class="h-9 object-contain group-hover:scale-105 transition-transform"
+                     style="filter: drop-shadow(0 0 8px rgba(56,189,248,0.18));">
+                <div>
+                    <span class="font-black brand-font text-white text-lg leading-none tracking-tight">SysMateriales</span>
+                    <div class="text-[9px] font-bold uppercase tracking-widest leading-none mt-0.5"
+                         style="color: var(--cicsa-sky);">CICSA · Plataforma Nacional</div>
                 </div>
-                <span class="font-bold text-xl tracking-tight text-slate-800">SysMateriales</span>
+            </a>
+
+            <!-- Acento decorativo central -->
+            <div class="hidden lg:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none">
+                <div class="flex items-center gap-1">
+                    <div class="w-1 h-1 rounded-full pulse-dot" style="background:var(--cicsa-sky); opacity:0.4;"></div>
+                    <div class="w-1 h-1 rounded-full pulse-dot" style="background:var(--cicsa-sky); opacity:0.2; animation-delay:0.3s;"></div>
+                    <div class="w-1 h-1 rounded-full pulse-dot" style="background:var(--cicsa-sky); opacity:0.4; animation-delay:0.6s;"></div>
+                </div>
             </div>
-            <div class="text-sm text-slate-500">
-                <i class="fa-regular fa-user-circle mr-1"></i> Técnico
+
+            <!-- Navegación central -->
+            <div class="hidden md:flex items-center gap-1">
+                <a href="/reportes" class="nav-link flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-all">
+                    <i class="fa-solid fa-chart-pie text-xs"></i> Inteligencia
+                </a>
+                <a href="/dashboard-stock" class="nav-link flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-all">
+                    <i class="fa-solid fa-boxes-stacked text-xs"></i> Almacén
+                </a>
+                <a href="/monitor" class="nav-link flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-all">
+                    <i class="fa-solid fa-radar text-xs"></i> Monitor
+                </a>
+            </div>
+
+            <!-- Usuario y logout -->
+            <div class="flex items-center gap-3">
+                <div class="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl"
+                     style="background: rgba(15,23,42,0.6); border: 1px solid rgba(56,189,248,0.12);">
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black text-white shadow-sm"
+                         style="background: linear-gradient(135deg, #1d4ed8, #38bdf8);">
+                        {{ session.get('user_name', 'U')[0]|upper if session.get('user_name') else 'U' }}
+                    </div>
+                    <span class="text-xs font-semibold text-slate-300">{{ session.get('user_name', 'Usuario') }}</span>
+                    <span class="text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase
+                        {% if session.get('role') == 'admin' %}role-badge-admin{% else %}role-badge-user{% endif %}">
+                        {{ session.get('role', '') }}
+                    </span>
+                </div>
+                <a href="/logout"
+                   class="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
+                   style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: #f87171;"
+                   onmouseover="this.style.background='rgba(239,68,68,0.18)'"
+                   onmouseout="this.style.background='rgba(239,68,68,0.08)'"
+                   title="Cerrar sesión">
+                    <i class="fa-solid fa-power-off text-sm"></i>
+                </a>
             </div>
         </div>
+        <!-- Línea decorativa inferior con brillo -->
+        <div class="cicsa-divider"></div>
     </nav>
 
-    <main class="py-6">
+    <main>
         {% block content %}{% endblock %}
     </main>
+
+    <script>
+        // Marcar nav link activo según la URL actual
+        const path = window.location.pathname;
+        document.querySelectorAll('.nav-link').forEach(link => {
+            if(link.getAttribute('href') && path.startsWith(link.getAttribute('href'))) {
+                link.classList.add('active');
+                link.classList.remove('text-slate-400');
+                link.classList.add('text-white');
+            }
+        });
+    </script>
 </body>
 </html>

@@ -3,75 +3,237 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Acceso Seguro | SysMateriales</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Control de Acceso | SysMateriales Premium</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
-        .brand-font { font-family: 'Outfit', sans-serif; }
-        .glass-card {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        :root {
+            --navy-950: #050816;
+            --navy-900: #0a0f2b;
+            --cicsa-blue: #1d4ed8;
+            --cicsa-sky: #38bdf8;
+            --accent-orange: #f97316;
         }
-        .fade-in { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        * { font-family: 'Inter', sans-serif; }
+        .brand-font { font-family: 'Outfit', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* ── FONDO DINÁMICO AVANZADO ─────────────────────────── */
+        body {
+            background-color: var(--navy-950);
+            background-image: 
+                linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            background-attachment: fixed;
+            overflow: hidden;
+        }
+
+        .glow-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(140px);
+            opacity: 0.25;
+            z-index: 0;
+            animation: moveOrb 20s infinite alternate ease-in-out;
+        }
+
+        @keyframes moveOrb {
+            from { transform: translate(-20%, -20%) scale(1); }
+            to   { transform: translate(20%, 20%) scale(1.2); }
+        }
+
+        /* ── TARJETA PREMIUM GLASS ───────────────────────────── */
+        .glass-panel {
+            background: linear-gradient(135deg, rgba(10,15,43,0.92) 0%, rgba(15,23,62,0.6) 100%);
+            border: 1px solid rgba(56,189,248,0.25);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            box-shadow: 
+                0 25px 50px -12px rgba(0,0,0,0.8),
+                inset 0 1px 1px rgba(255,255,255,0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Efecto Escaneo / Shimmer */
+        .glass-panel::after {
+            content: '';
+            position: absolute;
+            top: -100%; left: -100%;
+            width: 300%; height: 300%;
+            background: linear-gradient(
+                45deg, 
+                transparent 45%, 
+                rgba(56,189,248,0.05) 50%, 
+                transparent 55%
+            );
+            animation: shimmer 8s infinite linear;
+            pointer-events: none;
+        }
+
+        @keyframes shimmer {
+            0%   { transform: translate(-30%, -30%); }
+            100% { transform: translate(30%, 30%); }
+        }
+
+        /* ── INTERACCIONES DE INPUT ──────────────────────────── */
+        .tech-input {
+            background: rgba(5,8,22,0.8);
+            border: 1px solid rgba(56,189,248,0.15);
+            color: white;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .tech-input:focus {
+            border-color: var(--cicsa-sky);
+            background: rgba(5,8,22,1);
+            box-shadow: 0 0 20px rgba(56,189,248,0.15);
+            transform: translateY(-1px);
+        }
+
+        /* ── BOTÓN DE ACCESO ─────────────────────────────────── */
+        .btn-access {
+            background: linear-gradient(135deg, #1e40af, #2563eb, #38bdf8);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .btn-access::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: 0.5s;
+        }
+        .btn-access:hover::before { left: 100%; }
+        .btn-access:hover {
+            transform: scale(1.02);
+            filter: brightness(1.1);
+            box-shadow: 0 0 30px rgba(37,99,235,0.4);
+        }
+
+        /* ── ANIMACIONES "SYSTEM BOOT" ────────────────────────── */
+        .boot-1 { animation: bootUp 0.6s both ease-out; animation-delay: 0.1s; }
+        .boot-2 { animation: bootUp 0.6s both ease-out; animation-delay: 0.25s; }
+        .boot-3 { animation: bootUp 0.6s both ease-out; animation-delay: 0.4s; }
+        .boot-4 { animation: bootUp 0.6s both ease-out; animation-delay: 0.55s; }
+
+        @keyframes bootUp {
+            from { opacity: 0; transform: translateY(20px); filter: blur(10px); }
+            to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+
+        /* Indicador de pulso técnico */
+        .pulse-active {
+            width: 6px; height: 6px;
+            background: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #22c55e;
+            animation: pulseSimple 2s infinite;
+        }
+        @keyframes pulseSimple { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
     </style>
 </head>
-<body class="h-screen flex items-center justify-center p-4 overflow-hidden relative">
-    
-    <!-- Elementos Decorativos Fijos Fondo -->
-    <div class="absolute -top-32 -left-32 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-30 animate-pulse"></div>
-    <div class="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-30 animate-pulse animation-delay-2000"></div>
+<body class="h-screen flex items-center justify-center p-6 selection:bg-sky-500/30">
 
-    <div class="glass-card rounded-3xl p-8 md:p-12 w-full max-w-md fade-in relative z-10">
-        <div class="text-center mb-10">
-            <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30 mx-auto mb-6 text-white text-3xl">
-                <i class="fa-solid fa-layer-group"></i>
+    <!-- Capas de Glow Dinámico -->
+    <div class="glow-orb w-[500px] h-[500px] bg-blue-600 top-[-10%] left-[-10%]"></div>
+    <div class="glow-orb w-[600px] h-[600px] bg-indigo-900 bottom-[-20%] right-[-10%]" style="animation-duration: 30s"></div>
+
+    <div class="glass-panel w-full max-w-md rounded-[3rem] p-10 md:p-14 z-10">
+        
+        <!-- HEADER TÉCNICO -->
+        <div class="flex flex-col items-center mb-12">
+            <div class="boot-1 mb-10 flex flex-col items-center">
+                <img src="{{ url_for('static', filename='logo_carso.png') }}" alt="CARSO" 
+                     class="h-10 object-contain drop-shadow-[0_0_12px_rgba(255,255,255,0.15)] mb-6">
+                <!-- Línea decorativa técnica -->
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="pulse-active"></div>
+                    <span class="mono text-[8px] tracking-[0.4em] text-sky-400/80 font-bold uppercase">System Auth Protocol v2.6</span>
+                </div>
             </div>
-            <h1 class="text-3xl font-black brand-font tracking-tight mb-2">Punto de Control</h1>
-            <p class="text-slate-400 text-sm font-medium">Inventario, Stock Físico y Análisis Logístico</p>
+
+            <div class="boot-2 text-center">
+                <h1 class="text-5xl font-black brand-font tracking-tighter text-white mb-2 leading-none">
+                    SysMateriales
+                </h1>
+                <p class="text-[9px] font-extrabold uppercase tracking-[0.5em] text-slate-500 opacity-80">
+                    Operaciones CICSA Nacional
+                </p>
+            </div>
         </div>
 
         {% if error %}
-        <div class="bg-red-500/10 border border-red-500/50 text-red-500 text-sm font-bold px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            <div>{{ error }}</div>
+        <div class="boot-3 bg-red-500/5 border border-red-500/30 p-5 rounded-2xl mb-8 flex items-center gap-4 animate-pulse">
+            <div class="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500">
+                <i class="fa-solid fa-shield-virus text-xl"></i>
+            </div>
+            <div class="flex flex-col">
+                <span class="mono text-[9px] font-bold text-red-400 leading-none mb-1">AUTH_ERROR_REJECTED</span>
+                <p class="text-xs font-bold text-red-500 uppercase">{{ error }}</p>
+            </div>
         </div>
         {% endif %}
 
-        <form method="POST" action="/login" class="space-y-6">
-            <div>
-                <label class="block text-[11px] font-black tracking-widest text-slate-400 uppercase mb-2">Correo Corporativo</label>
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500">
-                        <i class="fa-solid fa-envelope"></i>
+        <!-- FORMULARIO -->
+        <form method="POST" action="/login" class="space-y-8">
+            <div class="boot-3 space-y-3">
+                <div class="flex justify-between items-center px-1">
+                    <label class="mono text-[9px] font-bold tracking-widest text-slate-500 uppercase">Credential ID</label>
+                    <span class="mono text-[8px] text-slate-700">AES-256 Enabled</span>
+                </div>
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none text-slate-500 group-focus-within:text-sky-400 transition-colors">
+                        <i class="fa-solid fa-fingerprint text-lg"></i>
                     </div>
-                    <input type="email" name="email" required placeholder="admin@correo.com" class="pl-11 pr-4 py-3.5 w-full bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-inner">
+                    <input type="email" name="email" required placeholder="user@ident.cicsa.pe" 
+                           class="tech-input pl-16 pr-6 py-5 w-full rounded-2xl font-semibold placeholder-slate-700 focus:outline-none">
                 </div>
             </div>
 
-            <div>
-                <label class="block text-[11px] font-black tracking-widest text-slate-400 uppercase mb-2">Clave de Operador</label>
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500">
-                        <i class="fa-solid fa-lock"></i>
+            <div class="boot-4 space-y-3">
+                <div class="flex justify-between items-center px-1">
+                    <label class="mono text-[9px] font-bold tracking-widest text-slate-500 uppercase">Access Token</label>
+                    <i class="fa-solid fa-key text-[10px] text-slate-700"></i>
+                </div>
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none text-slate-500 group-focus-within:text-sky-400 transition-colors">
+                        <i class="fa-solid fa-lock-open text-lg"></i>
                     </div>
-                    <input type="password" name="password" required placeholder="••••••••" class="pl-11 pr-4 py-3.5 w-full bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-inner">
+                    <input type="password" name="password" required placeholder="••••••••••••" 
+                           class="tech-input pl-16 pr-6 py-5 w-full rounded-2xl font-semibold placeholder-slate-700 focus:outline-none">
                 </div>
             </div>
 
-            <button type="submit" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold tracking-widest uppercase py-4 rounded-xl shadow-[0_4px_20px_rgba(79,70,229,0.3)] transition transform hover:-translate-y-0.5 mt-4">
-                Validar Acceso <i class="fa-solid fa-arrow-right-to-bracket ml-2"></i>
+            <button type="submit" class="boot-4 btn-access w-full text-white font-black tracking-[0.2em] uppercase py-5 rounded-3xl mt-4 flex items-center justify-center gap-4 group">
+                <span class="text-sm">Iniciar Sesión</span>
+                <i class="fa-solid fa-bolt-lightning text-xs group-hover:animate-pulse"></i>
             </button>
         </form>
         
-        <div class="text-center mt-8 space-y-2">
-            <div class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">📡 SISTEMA RESTRINGIDO A CONTRATAS Y SUPERVISORES</div>
+        <!-- FOOTER TÉCNICO -->
+        <div class="boot-4 mt-14 pt-8 border-t border-white/5 flex flex-col items-center gap-3">
+            <div class="flex items-center gap-4 grayscale opacity-40 hover:grayscale-0 hover:opacity-80 transition-all duration-500">
+                 <div class="w-12 h-[1px] bg-sky-500/20"></div>
+                 <span class="mono text-[8px] font-bold tracking-[0.4em] text-slate-500">CONTROL CENTER</span>
+                 <div class="w-12 h-[1px] bg-sky-500/20"></div>
+            </div>
+            <div class="flex text-[8px] gap-2 mono font-bold text-slate-700">
+                <span>COORD: -12.0464, -77.0428</span>
+                <span class="text-sky-900">|</span>
+                <span>ENC: RSA-4096</span>
+            </div>
         </div>
     </div>
+
+    <!-- Indicador de versión sutil -->
+    <div class="absolute bottom-10 right-10 mono text-[10px] text-slate-800 font-bold tracking-widest select-none pointer-events-none">
+        V-7.0.4.AC
+    </div>
+
 </body>
 </html>

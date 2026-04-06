@@ -4,3 +4,4 @@ pandas
 openpyxl
 gunicorn
 python-dotenv
+argon2-cffi

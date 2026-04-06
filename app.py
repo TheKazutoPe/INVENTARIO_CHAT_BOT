@@ -6,6 +6,27 @@ from functools import wraps
 import pandas as pd
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session
 from werkzeug.security import check_password_hash
+from argon2 import PasswordHasher as Argon2Hasher
+from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
+
+# Hasher compartido (thread-safe)
+_argon2 = Argon2Hasher()
+
+def verify_password(stored_hash: str, plain_password: str) -> bool:
+    """Verifica contraseña soportando argon2 (Supabase/Postgres) y werkzeug pbkdf2.
+    Argon2 es el formato nativo de los usuarios existentes en Supabase.
+    Werkzeug es fallback para cuentas creadas localmente con seed_users.py.
+    """
+    if not stored_hash:
+        return False
+    if stored_hash.startswith('$argon2'):
+        try:
+            _argon2.verify(stored_hash, plain_password)
+            return True
+        except (VerifyMismatchError, VerificationError, InvalidHashError):
+            return False
+    # Fallback: hash werkzeug (pbkdf2:sha256 / scrypt)
+    return check_password_hash(stored_hash, plain_password)
 from supabase import create_client, Client
 from config import Config
 
@@ -147,7 +168,7 @@ def login():
                                        error="⚠️ Cuenta suspendida. Contacta a tu administrador.")
 
             # ─── Verificar contraseña ───
-            if check_password_hash(user['password_hash'], password):
+            if verify_password(user['password_hash'], password):
                 # Login exitoso: resetear intentos fallidos
                 try:
                     supabase.table('users').update({

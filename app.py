@@ -788,15 +788,17 @@ def save_single():
 def delete_item():
     d = request.json
     try:
-        item_id = d.get('item_id')
+        item_id = d.get('item_id') or d.get('id')
+        subtotal_devuelto = 0
         # Devolver stock antes de borrar
         try:
-            item_data = supabase.table(Config.ACUMULADO_TABLE).select('brigada_responsable, cod_material, cant_material').eq('id', item_id).execute()
+            item_data = supabase.table(Config.ACUMULADO_TABLE).select('brigada_responsable, cod_material, cant_material, subtotal').eq('id', item_id).execute()
             if item_data.data:
                 itm = item_data.data[0]
                 bri = itm.get('brigada_responsable')
                 cod = itm.get('cod_material')
                 cant = float(itm.get('cant_material', 0))
+                subtotal_devuelto = float(itm.get('subtotal', 0))
                 stock_res = supabase.table('stock_brigadas').select('id, stock_actual').eq('brigada', bri).eq('cod_material', cod).execute()
                 if stock_res.data:
                     old_stock = stock_res.data[0]
@@ -808,7 +810,7 @@ def delete_item():
             print(f"Advertencia al devolver stock: {stock_e}")
 
         supabase.table(Config.ACUMULADO_TABLE).delete().eq('id', item_id).execute()
-        return jsonify({'ok': True})
+        return jsonify({'ok': True, 'subtotal_devuelto': subtotal_devuelto})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

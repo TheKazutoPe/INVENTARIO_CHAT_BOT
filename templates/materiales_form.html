@@ -340,6 +340,20 @@
     <script>
         const bitacoraId = "{{ bid }}";
         let currentItem = null, searchTimer;
+        let sessionCount = 0;
+        let sessionTotal = 0;
+
+        function updateSessionBar() {
+            const bar = document.getElementById('session-bar');
+            if(sessionCount > 0) {
+                bar.style.display = 'block';
+                document.getElementById('bar-count').innerText = sessionCount;
+                document.getElementById('bar-total').innerText = sessionTotal.toFixed(2);
+            } else {
+                bar.style.display = 'none';
+            }
+        }
+        
         // Stock por brigada cargado desde el servidor
         const stockData = {{ stock_brigadas | tojson }};
 
@@ -578,21 +592,38 @@
         async function deleteItem(id) {
             if(!confirm('¿Estás seguro que deseas devolver este stock y borrar el registro?')) return;
             const row = document.getElementById(`row-${id}`); 
-            row.style.transform = 'scale(0.95)';
-            row.style.opacity = '0.5';
+            if(row) {
+                row.style.transform = 'scale(0.95)';
+                row.style.opacity = '0.5';
+            }
             
             try { 
                 const res = await fetch('/api/delete-item', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ item_id: id }) }); 
                 if(res.ok) { 
-                    row.remove(); 
-                    // Actualizar contador
-                    const countElem = document.getElementById('history-count');
-                    countElem.innerText = parseInt(countElem.innerText) - 1;
+                    const d = await res.json();
+                    if(d.ok) {
+                        if(row) {
+                            row.style.transition = 'all 0.3s';
+                            row.style.opacity = '0';
+                            row.style.transform = 'scale(0.9)';
+                            setTimeout(() => row.remove(), 300);
+                        }
+                        // Actualizar contador
+                        const countElem = document.getElementById('history-count');
+                        countElem.innerText = Math.max(0, parseInt(countElem.innerText) - 1);
+                        
+                        sessionCount = Math.max(0, sessionCount - 1);
+                        sessionTotal = Math.max(0, sessionTotal - (d.subtotal_devuelto || 0));
+                        updateSessionBar();
+                    } else {
+                        alert('Error anulando el registro');
+                        if(row) { row.style.transform = ''; row.style.opacity = ''; }
+                    }
                 } else { 
-                    alert('Error anulando'); 
-                    row.style.transform = ''; row.style.opacity = ''; 
+                    alert('Error anulando (Servidor res no es OK)'); 
+                    if(row) { row.style.transform = ''; row.style.opacity = ''; }
                 } 
-            } catch(e) { alert('Error de red'); row.style.transform = ''; row.style.opacity = ''; }
+            } catch(e) { alert('Error de red al intentar anular'); if(row) { row.style.transform = ''; row.style.opacity = ''; } }
         }
 
         function addToHistory(item) {
@@ -640,25 +671,7 @@
             sessionTotal += parseFloat(item.subtotal || 0);
             updateSessionBar();
         }
-
-        // ── Borrar item ────────────────────────────────────────────
-        async function deleteItem(id) {
-            if(!confirm('¿Anular este registro y devolver el stock?')) return;
-            try {
-                const res = await fetch('/api/delete-item', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id}) });
-                const d = await res.json();
-                if(d.ok) {
-                    const el = document.getElementById(`row-${id}`);
-                    if(el) { el.style.opacity='0'; el.style.transform='scale(0.9)'; el.style.transition='all 0.3s'; setTimeout(()=>el.remove(),300); }
-                    const ce = document.getElementById('history-count');
-                    const newCount = Math.max(0, parseInt(ce.innerText)-1);
-                    ce.innerText = newCount;
-                    sessionCount = Math.max(0, sessionCount - 1);
-                    sessionTotal = Math.max(0, sessionTotal - (d.subtotal_devuelto || 0));
-                    updateSessionBar();
-                }
-            } catch(e) { alert('Error de conexión.'); }
-        }
     </script>
+
 </body>
 </html>

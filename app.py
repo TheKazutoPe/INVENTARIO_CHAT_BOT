@@ -424,19 +424,28 @@ def bitacoras_pendientes():
     Útil para el coordinador de operaciones para monitorear cumplimiento.
     """
     try:
-        dias = int(request.args.get('dias', 7))
         zona = request.args.get('zona', '')
-        fecha_corte = (datetime.datetime.now() - datetime.timedelta(days=dias)).isoformat()
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        dias = request.args.get('dias')
 
         query = supabase.table('bitacoras') \
-            .select('id, codigo_bd, nroincidencia_bd, nrotas_bd, nrosot_bd, zona_bd, bri1_oficial, fecha_asignacion_bd, estado_textual_bd, titulo_bd') \
-            .gte('fecha_asignacion_bd', fecha_corte) \
+            .select('id, codigo_bd, nroincidencia_bd, nrotas_bd, nrosot_bd, zona_bd, bri1_oficial, contrata_cicsa, fecha_asignacion_bd, estado_textual_bd, titulo_bd') \
             .eq('is_cerrada', False)
+            
+        if start_date:
+            query = query.gte('fecha_asignacion_bd', f"{start_date}T00:00:00")
+            if end_date:
+                query = query.lte('fecha_asignacion_bd', f"{end_date}T23:59:59")
+        else:
+            d = int(dias) if dias else 7
+            fecha_corte = (datetime.datetime.now() - datetime.timedelta(days=d)).isoformat()
+            query = query.gte('fecha_asignacion_bd', fecha_corte)
 
         if zona:
             query = query.eq('zona_bd', zona)
 
-        res = query.limit(200).execute()
+        res = query.limit(800).execute()
         bitacoras = res.data or []
 
         # Obtener IDs con material registrado

@@ -30,35 +30,71 @@
             </h1>
             <p class="text-slate-500 text-sm mt-1.5 ml-1">Supervisión de cumplimiento de registro de materiales por bitácora</p>
         </div>
-        <div class="flex flex-wrap items-end gap-3">
-            <div class="flex flex-col gap-1">
+        <div class="grid grid-cols-2 lg:grid-cols-6 gap-3 mt-4 lg:mt-0 items-end w-full lg:w-auto">
+            <!-- Zona -->
+            <div class="flex flex-col gap-1 hidden lg:flex">
                 <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Zona</label>
-                <select id="filterZona" onchange="cargar()" class="filter-input w-40">
+                <select id="filterZona" onchange="cargar()" class="filter-input w-full">
                     <option value="">Todas</option>
                     {% for z in zonas %}
                     <option value="{{ z }}">{{ z }}</option>
                     {% endfor %}
                 </select>
             </div>
+            
+            <!-- Fechas -->
+            <div class="flex flex-col gap-1 col-span-2 lg:col-span-1 min-w-[200px]">
+                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Fechas</label>
+                <div class="flex items-center gap-1 bg-[rgba(15,23,42,0.8)] border border-[rgba(255,255,255,0.08)] rounded-lg p-0.5" id="dateFilterMode">
+                    <select id="filterDateMode" onchange="toggleDateFilter()" class="filter-input border-none bg-transparent w-20 h-full py-1 text-xs focus:ring-0">
+                        <option value="dias">Días</option>
+                        <option value="rango">Fechas</option>
+                    </select>
+                    
+                    <div id="diasDiv" class="flex items-center w-full">
+                        <select id="filterDias" onchange="cargar()" class="filter-input border-none bg-transparent w-full h-full py-1 text-xs focus:ring-0 text-amber-400 font-bold">
+                            <option value="3">3 días</option>
+                            <option value="7" selected>7 días</option>
+                            <option value="14">14 días</option>
+                            <option value="30">1 mes</option>
+                        </select>
+                    </div>
+                    
+                    <div id="rangoDiv" class="hidden items-center gap-1 px-1 w-full justify-between">
+                        <input type="date" id="startDate" class="filter-input border-none bg-transparent py-1 text-xs w-[100px]" style="color-scheme: dark;">
+                        <input type="date" id="endDate" class="filter-input border-none bg-transparent py-1 text-xs w-[100px]" style="color-scheme: dark;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contrata -->
             <div class="flex flex-col gap-1">
-                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Días atrás</label>
-                <select id="filterDias" onchange="cargar()" class="filter-input w-28">
-                    <option value="3">3 días</option>
-                    <option value="7" selected>7 días</option>
-                    <option value="14">14 días</option>
-                    <option value="30">30 días</option>
+                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Contrata</label>
+                <select id="filterContrata" onchange="renderBitacoras()" class="filter-input w-full text-xs">
+                    <option value="all">Todas</option>
                 </select>
             </div>
+
+            <!-- Brigada -->
+            <div class="flex flex-col gap-1">
+                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Brigada</label>
+                <select id="filterBrigada" onchange="renderBitacoras()" class="filter-input w-full text-xs">
+                    <option value="all">Todas</option>
+                </select>
+            </div>
+
+            <!-- Ver -->
             <div class="flex flex-col gap-1">
                 <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Ver</label>
-                <select id="filterStatus" onchange="renderBitacoras()" class="filter-input w-44">
+                <select id="filterStatus" onchange="renderBitacoras()" class="filter-input w-full text-xs">
                     <option value="all">Todas</option>
-                    <option value="pendiente">Sin Material</option>
-                    <option value="ok">Con Material</option>
+                    <option value="pendiente">Sin Mat.</option>
+                    <option value="ok">Con Mat.</option>
                 </select>
             </div>
-            <button onclick="cargar()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition">
-                <i class="fa-solid fa-arrows-rotate text-xs"></i> Actualizar
+            
+            <button onclick="cargar()" class="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition h-[34px] w-full" title="Actualizar Datos">
+                <i class="fa-solid fa-arrows-rotate"></i> 
             </button>
         </div>
     </div>
@@ -114,6 +150,7 @@
                         <th class="th-cell px-5 py-3">Estado</th>
                         <th class="th-cell px-5 py-3">Incidencia</th>
                         <th class="th-cell px-5 py-3">Zona</th>
+                        <th class="th-cell px-5 py-3">Contrata</th>
                         <th class="th-cell px-5 py-3">Brigada</th>
                         <th class="th-cell px-5 py-3">Asignación</th>
                         <th class="th-cell px-5 py-3">Tipo</th>
@@ -121,7 +158,7 @@
                     </tr>
                 </thead>
                 <tbody id="tableBitacoras">
-                    <tr><td colspan="7" class="px-5 py-16 text-center text-slate-500">
+                    <tr><td colspan="8" class="px-5 py-16 text-center text-slate-500">
                         <i class="fa-solid fa-circle-notch fa-spin text-2xl text-amber-500 block mb-3"></i>
                         <span class="text-xs font-bold uppercase tracking-widest">Cargando radar...</span>
                     </td></tr>
@@ -134,33 +171,90 @@
 <script>
     let allBitacoras = [];
 
+    function toggleDateFilter() {
+        const mode = document.getElementById('filterDateMode').value;
+        const diasDiv = document.getElementById('diasDiv');
+        const rangoDiv = document.getElementById('rangoDiv');
+        if(mode === 'dias') {
+            diasDiv.style.display = 'flex';
+            rangoDiv.style.display = 'none';
+        } else {
+            diasDiv.style.display = 'none';
+            rangoDiv.style.display = 'flex';
+        }
+        cargar();
+    }
+
     async function cargar() {
         const zona  = document.getElementById('filterZona').value;
-        const dias  = document.getElementById('filterDias').value;
+        const mode  = document.getElementById('filterDateMode').value;
 
-        document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="7" class="px-5 py-16 text-center text-slate-500">
+        document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="8" class="px-5 py-16 text-center text-slate-500">
             <i class="fa-solid fa-circle-notch fa-spin text-2xl text-amber-500 block mb-3"></i>
             <span class="text-xs font-bold uppercase tracking-widest">Escaneando bitácoras...</span></td></tr>`;
 
-        let url = `/api/bitacoras-pendientes?dias=${dias}`;
+        let url = `/api/bitacoras-pendientes?`;
+        
+        if (mode === 'dias') {
+            const dias = document.getElementById('filterDias').value;
+            url += `dias=${dias}`;
+        } else {
+            const sd = document.getElementById('startDate').value;
+            const ed = document.getElementById('endDate').value;
+            if(sd) url += `start_date=${sd}&`;
+            if(ed) url += `end_date=${ed}&`;
+        }
         if(zona) url += `&zona=${encodeURIComponent(zona)}`;
 
         try {
             const res = await fetch(url);
             allBitacoras = await res.json();
+            populateSelects();
             renderBitacoras();
         } catch(e) {
-            document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="7" class="p-10 text-center text-red-400 font-bold">Error de conexión</td></tr>`;
+            document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="8" class="p-10 text-center text-red-400 font-bold">Error de conexión</td></tr>`;
         }
+    }
+    
+    function populateSelects() {
+        const selContrata = document.getElementById('filterContrata');
+        const selBrigada = document.getElementById('filterBrigada');
+        
+        const actContrata = selContrata.value;
+        const actBrigada = selBrigada.value;
+        
+        let contratas = new Set();
+        let brigadas = new Set();
+        
+        allBitacoras.forEach(b => {
+             if(b.contrata_cicsa) contratas.add(b.contrata_cicsa.trim().toUpperCase());
+             if(b.bri1_oficial) brigadas.add(b.bri1_oficial.trim().toUpperCase());
+        });
+        
+        // Render Contratas
+        let hc = '<option value="all">Todas</option>';
+        [...contratas].sort().forEach(c => hc += `<option value="${c}">${c}</option>`);
+        selContrata.innerHTML = hc;
+        if([...contratas].includes(actContrata)) selContrata.value = actContrata;
+        
+        // Render Brigadas
+        let hb = '<option value="all">Todas</option>';
+        [...brigadas].sort().forEach(b => hb += `<option value="${b}">${b}</option>`);
+        selBrigada.innerHTML = hb;
+        if([...brigadas].includes(actBrigada)) selBrigada.value = actBrigada;
     }
 
     function renderBitacoras() {
         const statusFilter = document.getElementById('filterStatus').value;
+        const contrataFilter = document.getElementById('filterContrata').value;
+        const brigadaFilter = document.getElementById('filterBrigada').value;
         const q = document.getElementById('searchTable').value.toLowerCase();
 
         let data = allBitacoras;
         if(statusFilter === 'pendiente') data = data.filter(b => !b.tiene_material);
         if(statusFilter === 'ok') data = data.filter(b => b.tiene_material);
+        if(contrataFilter !== 'all') data = data.filter(b => (b.contrata_cicsa || '').toUpperCase() === contrataFilter);
+        if(brigadaFilter !== 'all') data = data.filter(b => (b.bri1_oficial || '').toUpperCase() === brigadaFilter);
         if(q.length >= 2) data = data.filter(b => JSON.stringify(b).toLowerCase().includes(q));
 
         // Sort: sin material primero
@@ -180,7 +274,7 @@
         document.getElementById('kpi-cumpl').textContent = cumpl + '%';
 
         if(!data.length) {
-            document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="7" class="px-5 py-12 text-center text-slate-600 text-xs font-bold uppercase tracking-widest">Sin bitácoras para los filtros aplicados</td></tr>`;
+            document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="8" class="px-5 py-12 text-center text-slate-600 text-xs font-bold uppercase tracking-widest">Sin bitácoras para los filtros aplicados</td></tr>`;
             return;
         }
 
@@ -201,6 +295,9 @@
                     <div class="text-[9px] text-slate-600">ID: ${b.id}</div>
                 </td>
                 <td class="px-5 py-3 text-slate-400 text-[11px] font-semibold">${b.zona_bd || '—'}</td>
+                <td class="px-5 py-3">
+                    <span class="text-[10px] text-slate-300 font-bold uppercase">${(b.contrata_cicsa || '—').substring(0, 15)}</span>
+                </td>
                 <td class="px-5 py-3">
                     <span class="bg-slate-800/80 text-slate-300 border border-slate-700/60 px-2 py-1 rounded-lg text-[10px] font-black uppercase">${b.bri1_oficial || '—'}</span>
                 </td>

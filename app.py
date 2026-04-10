@@ -788,7 +788,26 @@ def save_single():
         except Exception as stock_e:
             print(f"Advertencia: No se pudo descontar stock: {stock_e}")
 
-        return jsonify({'ok': True, 'saved': final_res.data[0]})
+        # Supabase RLS puede devolver data=[] aun cuando el insert fue exitoso.
+        # En ese caso recuperamos la fila recién insertada por bitacora_id + cod_material + fecha.
+        saved_row = None
+        if final_res.data:
+            saved_row = final_res.data[0]
+        else:
+            try:
+                fallback = supabase.table(Config.ACUMULADO_TABLE) \
+                    .select("*") \
+                    .eq('bitacora_id', str(d['bid'])) \
+                    .eq('brigada_responsable', d['bri']) \
+                    .eq('cod_material', d['item'].get('codigo')) \
+                    .order('id', desc=True) \
+                    .limit(1) \
+                    .execute()
+                saved_row = fallback.data[0] if fallback.data else row
+            except:
+                saved_row = row  # Devolver lo que enviamos como mínimo
+
+        return jsonify({'ok': True, 'saved': saved_row})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

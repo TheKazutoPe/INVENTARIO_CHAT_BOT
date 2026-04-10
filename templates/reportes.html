@@ -112,7 +112,7 @@
     </div>
 
     <!-- KPI RÁPIDOS -->
-    <div class="grid grid-cols-2 {% if role == 'admin' %}md:grid-cols-4{% else %}md:grid-cols-3{% endif %} gap-4 mb-8" id="kpiBar">
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8" id="kpiBar">
         <div class="glass p-4 flex items-center gap-4">
             <div class="w-10 h-10 rounded-full bg-blue-500/15 flex items-center justify-center text-blue-400 shrink-0"><i class="fa-solid fa-list-check"></i></div>
             <div>
@@ -127,15 +127,6 @@
                 <div class="text-2xl font-black text-emerald-400" id="kpi-unidades">—</div>
             </div>
         </div>
-        {% if role == 'admin' %}
-        <div class="glass p-4 flex items-center gap-4">
-            <div class="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center text-amber-400 shrink-0"><i class="fa-solid fa-dollar-sign"></i></div>
-            <div>
-                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total USD</div>
-                <div class="text-2xl font-black text-amber-400" id="kpi-usd">—</div>
-            </div>
-        </div>
-        {% endif %}
         <div class="glass p-4 flex items-center gap-4">
             <div class="w-10 h-10 rounded-full bg-purple-500/15 flex items-center justify-center text-purple-400 shrink-0"><i class="fa-solid fa-users-gear"></i></div>
             <div>
@@ -173,9 +164,6 @@
                         <th class="th-cell px-5 py-3">Origen</th>
                         <th class="th-cell px-5 py-3 w-1/4">Material</th>
                         <th class="th-cell px-5 py-3 text-center">Cant.</th>
-                        {% if role == 'admin' %}
-                        <th class="th-cell px-5 py-3 text-right">Subtotal</th>
-                        {% endif %}
                     </tr>
                 </thead>
                 <tbody id="tableBody">
@@ -254,10 +242,6 @@
         const brigadas = new Set(data.map(r => r.brigada_responsable).filter(Boolean));
         document.getElementById('kpi-registros').textContent = data.length.toLocaleString('es-PE');
         document.getElementById('kpi-unidades').textContent = unidades.toLocaleString('es-PE', {maximumFractionDigits: 0});
-        if(IS_ADMIN) {
-            const usd = data.reduce((s, r) => s + (parseFloat(r.subtotal) || 0), 0);
-            document.getElementById('kpi-usd').textContent = '$ ' + usd.toLocaleString('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-        }
         document.getElementById('kpi-brigadas-rep').textContent = brigadas.size;
         document.getElementById('rowCount').textContent = data.length.toLocaleString('es-PE');
 
@@ -301,7 +285,6 @@
                     <span class="font-black brand-font text-xl text-white">${parseFloat(r.cant_material || 0).toLocaleString('es-PE', {maximumFractionDigits: 1})}</span>
                     <span class="text-slate-500 text-[10px] ml-0.5">u</span>
                 </td>
-                ${IS_ADMIN ? `<td class="px-5 py-3 text-right font-mono font-bold text-amber-400">$${parseFloat(r.subtotal||0).toFixed(2)}</td>` : ''}
             </tr>`;
         });
         document.getElementById('tableBody').innerHTML = html;

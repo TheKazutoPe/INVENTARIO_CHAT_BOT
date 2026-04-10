@@ -254,10 +254,7 @@
                                     <span class="text-[9px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">AX: {{ item.cod_material.lstrip('0') if item.cod_material else '-' }}</span>
                                 </div>
                                 <div class="font-bold text-sm text-slate-800 leading-tight brand-font">{{ item.nombre_material }}</div>
-                                <div class="flex items-center gap-3 mt-1.5">
-                                    <span class="text-[10px] font-bold text-slate-500">$ {{ '%.2f'|format(item.precio_unit or 0) }} c/u</span>
-                                    <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Total: $ {{ '%.2f'|format(item.subtotal or 0) }}</span>
-                                </div>
+
                             </div>
                         </div>
                         <div class="flex flex-col items-end justify-between shrink-0 h-full ml-3">
@@ -282,17 +279,13 @@
         </div>
     </div>
 
-    <!-- BARRA FLOTANTE INFERIOR: resumen de sesión -->
+    <!-- BARRA FLOTANTE INFERIOR: resumen de sesión (sin costos) -->
     <div id="session-bar" class="fixed bottom-0 left-0 right-0 z-40 px-5 pb-6 pt-3 bg-gradient-to-t from-slate-100 to-transparent pointer-events-none" style="display:none">
         <div class="max-w-md mx-auto pointer-events-auto">
             <div class="bg-slate-800 rounded-2xl px-5 py-4 flex items-center justify-between shadow-2xl shadow-slate-900/30">
                 <div>
                     <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Registrados esta sesión</div>
                     <div class="text-white font-black text-lg brand-font"><span id="bar-count">0</span> material(es)</div>
-                </div>
-                <div class="text-right">
-                    <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Subtotal sesión</div>
-                    <div class="text-emerald-400 font-black text-lg brand-font">$ <span id="bar-total">0.00</span></div>
                 </div>
                 <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-600/40">
                     <i class="fa-solid fa-boxes-stacked"></i>
@@ -341,14 +334,12 @@
         const bitacoraId = "{{ bid }}";
         let currentItem = null, searchTimer;
         let sessionCount = 0;
-        let sessionTotal = 0;
 
         function updateSessionBar() {
             const bar = document.getElementById('session-bar');
             if(sessionCount > 0) {
                 bar.style.display = 'block';
                 document.getElementById('bar-count').innerText = sessionCount;
-                document.getElementById('bar-total').innerText = sessionTotal.toFixed(2);
             } else {
                 bar.style.display = 'none';
             }
@@ -613,7 +604,6 @@
                         countElem.innerText = Math.max(0, parseInt(countElem.innerText) - 1);
                         
                         sessionCount = Math.max(0, sessionCount - 1);
-                        sessionTotal = Math.max(0, sessionTotal - (d.subtotal_devuelto || 0));
                         updateSessionBar();
                     } else {
                         alert('Error anulando el registro');
@@ -647,10 +637,7 @@
                             <span class="text-[9px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">AX: ${(item.cod_material || '').replace(/^0+/,'')}</span>
                         </div>
                         <div class="font-bold text-sm text-slate-800 leading-tight brand-font">${item.nombre_material}</div>
-                        <div class="flex items-center gap-3 mt-1.5">
-                            <span class="text-[10px] font-bold text-slate-500">$ ${parseFloat(item.precio_unit||0).toFixed(2)} c/u</span>
-                            <span class="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Total: $ ${parseFloat(item.subtotal||0).toFixed(2)}</span>
-                        </div>
+
                     </div>
                 </div>
                 <div class="flex flex-col items-end justify-between shrink-0 ml-3">
@@ -668,7 +655,6 @@
             const countElem = document.getElementById('history-count');
             countElem.innerText = parseInt(countElem.innerText) + 1;
             sessionCount++;
-            sessionTotal += parseFloat(item.subtotal || 0);
             updateSessionBar();
         }
     </script>

@@ -1,197 +1,314 @@
 {% extends 'base.html' %}
-{% block title %}Almacén Nacional | SysMateriales{% endblock %}
+{% block title %}Control de Stock | SysMateriales{% endblock %}
 {% block content %}
 <style>
-    body { background-color: #080e1e; }
-    .glass { background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; backdrop-filter: blur(12px); }
-    .glass-sm { background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; }
-    .progress-track { background: rgba(255,255,255,0.05); border-radius: 999px; overflow: hidden; height: 6px; }
-    .progress-fill { height: 100%; border-radius: 999px; transition: width 1.2s cubic-bezier(0.4,0,0.2,1); }
-    .th-cell { background: rgba(8,14,30,0.9); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid rgba(255,255,255,0.06); }
-    .tr-row { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s; }
-    .tr-row:hover { background: rgba(59,130,246,0.04); }
-    .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
-    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.4); border-radius: 10px; }
-    .alerta-card { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 12px; }
-    .alerta-card-amber { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 12px; }
-    .filter-input { background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.08); color: #f1f5f9; border-radius: 10px; padding: 7px 12px; font-size: 12px; outline: none; transition: border-color 0.2s; }
-    .filter-input:focus { border-color: rgba(59,130,246,0.6); }
-    .filter-input option { background: #1e293b; }
-    .dropzone { background: rgba(15,23,42,0.4); border: 2px dashed rgba(99,102,241,0.3); border-radius: 14px; transition: all 0.3s; }
-    .dropzone.over { border-color: #3b82f6; background: rgba(59,130,246,0.08); }
-    /* Zona Badge Colors */
-    .zona-norte { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); color: #60a5fa; }
-    .zona-sur   { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: #34d399; }
-    .zona-centro{ background: rgba(168,85,247,0.1); border-color: rgba(168,85,247,0.3); color: #c084fc; }
-    .zona-other { background: rgba(148,163,184,0.1); border-color: rgba(148,163,184,0.3); color: #94a3b8; }
+    body { background-color: #060c1a; }
+
+    /* ── Glass & Cards ── */
+    .glass    { background: rgba(13,20,40,0.7); border: 1px solid rgba(255,255,255,0.07); border-radius:16px; backdrop-filter:blur(14px); }
+    .glass-sm { background: rgba(13,20,40,0.55); border: 1px solid rgba(255,255,255,0.06); border-radius:12px; }
+
+    /* ── Progress ── */
+    .track { background:rgba(255,255,255,0.05); border-radius:999px; overflow:hidden; height:5px; }
+    .fill  { height:100%; border-radius:999px; transition:width 1.2s cubic-bezier(.4,0,.2,1); }
+
+    /* ── Table ── */
+    .th-cell { background:rgba(6,12,26,0.97); position:sticky; top:0; z-index:10; border-bottom:1px solid rgba(255,255,255,0.06); }
+    .tr-row  { border-bottom:1px solid rgba(255,255,255,0.035); transition:background .15s; }
+    .tr-row:hover { background:rgba(59,130,246,0.05); }
+
+    /* ── Scrollbar ── */
+    .cscroll::-webkit-scrollbar { width:4px; height:4px; }
+    .cscroll::-webkit-scrollbar-thumb { background:rgba(99,102,241,0.4); border-radius:10px; }
+
+    /* ── Brigade panel card ── */
+    .bri-card { border-radius:12px; padding:10px 14px; cursor:pointer; border:1px solid rgba(255,255,255,0.05);
+                background:rgba(255,255,255,0.02); transition:all .18s; display:flex; align-items:center; gap:10px; }
+    .bri-card:hover  { background:rgba(99,102,241,0.08); border-color:rgba(99,102,241,0.25); }
+    .bri-card.active { background:rgba(99,102,241,0.14); border-color:rgba(99,102,241,0.5);
+                       box-shadow:0 0 16px rgba(99,102,241,0.15); }
+    .health-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+
+    /* ── Filter input ── */
+    .fi { background:rgba(13,20,40,0.8); border:1px solid rgba(255,255,255,0.08); color:#f1f5f9;
+          border-radius:10px; padding:7px 12px; font-size:12px; outline:none; transition:border-color .2s; }
+    .fi:focus { border-color:rgba(99,102,241,0.6); }
+    .fi option { background:#1e293b; }
+
+    /* ── Dropzone ── */
+    .dropzone { background:rgba(13,20,40,0.4); border:2px dashed rgba(99,102,241,0.3); border-radius:14px; transition:all .3s; }
+    .dropzone.over { border-color:#6366f1; background:rgba(99,102,241,0.08); }
+
+    /* ── Zone badges ── */
+    .z-norte  { background:rgba(59,130,246,0.12); border:1px solid rgba(59,130,246,0.3);  color:#60a5fa; }
+    .z-sur    { background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3);  color:#34d399; }
+    .z-centro { background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.3);  color:#c084fc; }
+    .z-other  { background:rgba(148,163,184,0.1); border:1px solid rgba(148,163,184,0.3); color:#94a3b8; }
+
+    /* ── KPI bar ── */
+    .kpi-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06);
+                border-radius:12px; padding:12px 18px; display:flex; align-items:center; gap:12px; }
+
+    /* ── Pulse dot for criticals ── */
+    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+    .pulse-red { animation:blink 1.4s ease-in-out infinite; }
+
+    /* ── Alerta pill ── */
+    .alerta-pill { background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.22); border-radius:10px; padding:8px 12px; }
+    .alerta-pill-amber { background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:10px; padding:8px 12px; }
+
+    /* ── Fade in ── */
+    @keyframes fadeUp { from{opacity:0;transform:translateY(12px);} to{opacity:1;transform:none;} }
+    .fade-up { animation:fadeUp .35s ease forwards; }
 </style>
 
-<div class="max-w-screen-2xl mx-auto px-5 py-8 fade-in">
-
-    <!-- CABECERA -->
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-5">
-        <div>
-            <h1 class="text-3xl font-black brand-font text-white flex items-center gap-3">
-                <div class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                    <i class="fa-solid fa-boxes-stacked text-base"></i>
-                </div>
-                Dashboard de Almacén
-            </h1>
-            <p class="text-slate-500 text-sm mt-1.5 ml-1">Control en vivo de inventarios por brigada y zona nacional</p>
+{# ═══════════════════════════════════════════════════ #}
+{#  HEADER                                             #}
+{# ═══════════════════════════════════════════════════ #}
+<div class="sticky top-0 z-30 px-5 py-3 border-b border-white/5" style="background:rgba(6,12,26,0.92);backdrop-filter:blur(18px);">
+    <div class="max-w-screen-2xl mx-auto flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-900/40">
+                <i class="fa-solid fa-boxes-stacked text-white text-sm"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-black text-white brand-font leading-none">Control de Stock</h1>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Brigadas · Tiempo Real</p>
+            </div>
         </div>
-        <div class="flex flex-wrap gap-3 items-center">
-            <!-- Filtro zona -->
-            <select id="filterZona" onchange="cambiarZona()" class="filter-input w-40">
+
+        <div class="flex items-center gap-2 flex-wrap">
+            <!-- Zona filter -->
+            <select id="filterZona" onchange="cambiarFiltro()" class="fi w-36 text-xs">
                 <option value="">Todas las zonas</option>
                 {% for z in zonas %}
                 <option value="{{ z }}">{{ z }}</option>
                 {% endfor %}
             </select>
-            <button onclick="openDespachoModal()" class="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-blue-600/20">
-                <i class="fa-solid fa-boxes-packing"></i> Despacho
+
+            <!-- Contrata filter -->
+            <select id="filterContrata" onchange="cambiarFiltro()" class="fi w-44 text-xs">
+                <option value="">Todas las contratas</option>
+                {% for c in contratas %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- Despacho -->
+            <button onclick="openDespachoModal()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-md shadow-blue-900/30">
+                <i class="fa-solid fa-arrow-right-arrow-left"></i> Despacho
+            </button>
+
+            <!-- Import -->
+            <button onclick="openImportModal()" class="flex items-center gap-2 px-4 py-2 bg-emerald-700/60 hover:bg-emerald-600/70 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl transition">
+                <i class="fa-solid fa-file-import"></i> Importar Excel
             </button>
         </div>
     </div>
+</div>
 
-    <!-- KPI ROW -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="kpiRow">
-        <div class="glass p-5 flex items-center justify-between">
-            <div>
-                <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Brigadas</div>
-                <div class="text-3xl font-black text-white" id="kpi-brigadas">0</div>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-blue-500/15 flex items-center justify-center text-blue-400 text-xl"><i class="fa-solid fa-truck-fast"></i></div>
+<div class="max-w-screen-2xl mx-auto px-5 py-5 fade-in">
+
+{# ═══════════════════════════════════════════════════ #}
+{#  KPI STRIP                                          #}
+{# ═══════════════════════════════════════════════════ #}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+    <div class="kpi-card">
+        <div class="w-8 h-8 rounded-lg bg-indigo-500/15 flex items-center justify-center text-indigo-400 shrink-0">
+            <i class="fa-solid fa-truck-fast text-sm"></i>
         </div>
-        <div class="glass p-5 flex items-center justify-between border border-red-500/20">
-            <div>
-                <div class="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">Alertas Críticas</div>
-                <div class="text-3xl font-black text-red-500" id="kpi-alertas">0</div>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center text-red-400 text-xl animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i></div>
-        </div>
-        <div class="glass p-5 flex items-center justify-between">
-            <div>
-                <div class="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1">Stock Bajo (≤40%)</div>
-                <div class="text-3xl font-black text-amber-400" id="kpi-bajo">0</div>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-amber-500/15 flex items-center justify-center text-amber-400 text-xl"><i class="fa-solid fa-battery-quarter"></i></div>
-        </div>
-        <div class="glass p-5 flex items-center justify-between">
-            <div>
-                <div class="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Unidades Totales</div>
-                <div class="text-3xl font-black text-emerald-400" id="kpi-total">0</div>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-emerald-500/15 flex items-center justify-center text-emerald-400 text-xl"><i class="fa-solid fa-cubes"></i></div>
+        <div>
+            <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Brigadas</div>
+            <div class="text-xl font-black text-white brand-font" id="kpi-brigadas">—</div>
         </div>
     </div>
-
-    <!-- PANEL ALERTAS CRITICAS -->
-    <div id="panelAlertas" class="mb-6 hidden">
-        <div class="flex items-center gap-2 mb-3">
-            <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-            <h2 class="text-sm font-black text-red-400 uppercase tracking-widest">Alertas Críticas — Requieren Reabastecimiento Inmediato</h2>
+    <div class="kpi-card">
+        <div class="w-8 h-8 rounded-lg bg-red-500/15 flex items-center justify-center text-red-400 shrink-0 pulse-red">
+            <i class="fa-solid fa-triangle-exclamation text-sm"></i>
         </div>
-        <div id="alertasGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"></div>
-    </div>
-
-    <!-- SALUD POR ZONA (Gráfico) -->
-    <div id="saludZonas" class="glass mb-6 p-6 hidden">
-        <h2 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-            <i class="fa-solid fa-signal text-indigo-400"></i> Salud de Stock por Zona
-        </h2>
-        <div id="zonaCharts" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4"></div>
-    </div>
-
-    <!-- CARGA MASIVA -->
-    <div class="glass mb-6 overflow-hidden">
-        <div class="p-1">
-            <div id="drop-zone" class="dropzone p-6 text-center cursor-pointer group" onclick="document.getElementById('fileInput').click()">
-                <input type="file" id="fileInput" class="hidden" accept=".xlsx,.xls">
-                <div class="relative z-10 pointer-events-none">
-                    <i class="fa-solid fa-file-excel text-4xl text-emerald-400 mb-3 group-hover:-translate-y-1 transition-transform duration-300 inline-block"></i>
-                    <h3 class="text-lg font-black text-emerald-400 mb-1">Importar Matriz de Despacho (.xlsx)</h3>
-                    <p class="text-slate-500 text-xs">Arrastra y suelta o haz clic · Columnas requeridas: BRIGADA, CÓDIGO/AX, CANTIDAD</p>
-                </div>
-                <div id="uploading-ui" class="absolute inset-0 bg-slate-900/90 flex-col items-center justify-center z-20 hidden rounded-xl">
-                    <i class="fa-solid fa-satellite-dish fa-spin text-3xl text-blue-500 mb-2"></i>
-                    <p class="text-blue-400 font-bold text-xs tracking-widest uppercase animate-pulse">Procesando Matriz...</p>
-                </div>
-            </div>
-        </div>
-        <div class="px-6 py-3 border-t border-white/5 flex justify-between items-center" style="background:rgba(15,23,42,0.4)">
-            <span class="text-[10px] text-slate-600 font-semibold"><i class="fa-solid fa-shield-halved mr-1 text-blue-500"></i>Procesamiento seguro en servidor</span>
-            <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-400">
-                <input type="checkbox" id="chkReemplazo" class="w-3.5 h-3.5 rounded text-blue-500 focus:ring-blue-500 bg-slate-700 border-slate-600">
-                Reemplazo físico (sobrescribir)
-            </label>
+        <div>
+            <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Alertas Críticas</div>
+            <div class="text-xl font-black text-red-400 brand-font" id="kpi-alertas">—</div>
         </div>
     </div>
+    <div class="kpi-card">
+        <div class="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-400 shrink-0">
+            <i class="fa-solid fa-battery-quarter text-sm"></i>
+        </div>
+        <div>
+            <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Stock Bajo</div>
+            <div class="text-xl font-black text-amber-400 brand-font" id="kpi-bajo">—</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-400 shrink-0">
+            <i class="fa-solid fa-cubes text-sm"></i>
+        </div>
+        <div>
+            <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Unidades Totales</div>
+            <div class="text-xl font-black text-emerald-400 brand-font" id="kpi-total">—</div>
+        </div>
+    </div>
+</div>
 
-    <!-- TABLA CENTRAL DE STOCK -->
+{# ═══════════════════════════════════════════════════ #}
+{#  ALERTAS CRÍTICAS (colapsable)                      #}
+{# ═══════════════════════════════════════════════════ #}
+<div id="panelAlertas" class="hidden mb-5">
     <div class="glass overflow-hidden">
-        <div class="px-6 py-4 border-b border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <h2 class="text-base font-bold text-white flex items-center gap-2">
-                <i class="fa-regular fa-hard-drive text-indigo-400 text-sm"></i> Inventario por Brigada
-            </h2>
+        <button onclick="toggleAlertas()" class="w-full flex items-center justify-between px-5 py-3 text-xs font-black uppercase tracking-widest text-red-400 hover:bg-red-500/5 transition">
+            <span><i class="fa-solid fa-circle-exclamation mr-2 pulse-red"></i>ALERTAS CRÍTICAS — Requieren Reabastecimiento</span>
+            <i id="alertasArrow" class="fa-solid fa-chevron-up text-slate-500 text-[10px]"></i>
+        </button>
+        <div id="alertasBody" class="px-5 pb-4">
+            <div id="alertasGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2"></div>
+        </div>
+    </div>
+</div>
+
+{# ═══════════════════════════════════════════════════ #}
+{#  MAIN: Brigade Panel (Left) + Stock Table (Right)   #}
+{# ═══════════════════════════════════════════════════ #}
+<div class="flex gap-4 items-start">
+
+    {# ── LEFT: Brigade Panel ── #}
+    <div class="w-64 shrink-0 glass overflow-hidden sticky top-20" style="max-height:calc(100vh - 120px); display:flex; flex-direction:column;">
+        <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Brigadas</span>
+            <span class="text-[9px] bg-indigo-500/20 text-indigo-300 font-bold px-2 py-0.5 rounded-full" id="bri-count">0</span>
+        </div>
+        <!-- Search brigada -->
+        <div class="px-3 py-2 border-b border-white/5">
             <div class="relative">
-                <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-500 text-xs"></i>
-                <input type="text" id="searchBrigada" oninput="filterStock()" placeholder="Brigada o material..." class="filter-input pl-8 w-60">
+                <i class="fa-solid fa-search absolute left-3 top-2 text-slate-600 text-[10px]"></i>
+                <input type="text" id="searchBrigadaPanel" oninput="filterBrigadas()" placeholder="Buscar brigada..." class="fi w-full pl-7 py-1.5 text-[11px]">
+            </div>
+        </div>
+        <!-- Brigada list -->
+        <div class="flex-1 overflow-y-auto cscroll px-3 py-2 space-y-1" id="brigadaList">
+            <div class="text-center py-8 text-slate-600 text-xs">
+                <i class="fa-solid fa-spinner fa-spin text-indigo-500 text-xl block mb-2"></i>
+                Cargando...
+            </div>
+        </div>
+    </div>
+
+    {# ── RIGHT: Stock Detail ── #}
+    <div class="flex-1 min-w-0 glass overflow-hidden">
+        <!-- Table header -->
+        <div class="px-5 py-3 border-b border-white/5 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <h2 class="text-sm font-black text-white brand-font flex items-center gap-2">
+                    <i class="fa-solid fa-table-list text-indigo-400 text-xs"></i>
+                    Inventario — <span id="tableTitle" class="text-indigo-300">Todas las brigadas</span>
+                </h2>
+                <span class="text-[9px] bg-slate-800 text-slate-400 font-bold px-2 py-0.5 rounded-full" id="rowCount">0 items</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2 text-slate-500 text-[10px]"></i>
+                    <input type="text" id="searchMaterial" oninput="filterStock()" placeholder="Brigada, material o código..." class="fi pl-8 w-64 py-1.5 text-[11px]">
+                </div>
+                <button onclick="clearBrigadaFilter()" id="btnClearFilter" class="hidden text-[10px] text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-lg transition">
+                    <i class="fa-solid fa-xmark mr-1"></i>Todas
+                </button>
             </div>
         </div>
 
-        <div class="overflow-x-auto max-h-[60vh] overflow-y-auto custom-scroll">
+        <!-- Table -->
+        <div class="overflow-x-auto cscroll" style="max-height:calc(100vh - 200px); overflow-y:auto;">
             <table class="w-full text-left text-xs whitespace-nowrap" id="stockTable">
                 <thead>
-                    <tr class="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                        <th class="th-cell px-5 py-3">Zona</th>
-                        <th class="th-cell px-5 py-3">Brigada</th>
-                        <th class="th-cell px-5 py-3">Código</th>
-                        <th class="th-cell px-5 py-3 w-1/3">Material</th>
-                        <th class="th-cell px-5 py-3 text-center w-40">Salud</th>
-                        <th class="th-cell px-5 py-3 text-right">Mínimo</th>
-                        <th class="th-cell px-5 py-3 text-right">Existencias</th>
+                    <tr class="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                        <th class="th-cell px-4 py-3">Zona</th>
+                        <th class="th-cell px-4 py-3">Brigada</th>
+                        <th class="th-cell px-4 py-3">Código AX</th>
+                        <th class="th-cell px-4 py-3 w-2/5">Material</th>
+                        <th class="th-cell px-4 py-3 text-center" style="min-width:130px;">Salud de Stock</th>
+                        <th class="th-cell px-4 py-3 text-right">Mínimo</th>
+                        <th class="th-cell px-4 py-3 text-right">Existencias</th>
+                        {% if role == 'admin' %}
+                        <th class="th-cell px-4 py-3 text-center">Acciones</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody id="stockTbody">
-                    <tr><td colspan="6" class="px-5 py-12 text-center text-slate-500">
-                        <i class="fa-solid fa-spinner fa-spin text-blue-500 text-2xl block mb-3"></i>
-                        <span class="text-xs font-bold uppercase tracking-widest">Sincronizando...</span>
+                    <tr><td colspan="8" class="px-5 py-12 text-center text-slate-500">
+                        <i class="fa-solid fa-spinner fa-spin text-indigo-500 text-2xl block mb-3"></i>
+                        <span class="text-xs font-bold uppercase tracking-widest">Sincronizando inventario...</span>
                     </td></tr>
                 </tbody>
             </table>
         </div>
     </div>
+
+</div><!-- end main grid -->
+
+</div><!-- end container -->
+
+
+{# ═══════════════════════════════════════════════════ #}
+{#  MODAL: IMPORTAR EXCEL                             #}
+{# ═══════════════════════════════════════════════════ #}
+<div id="modalImport" class="fixed inset-0 bg-black/70 backdrop-blur-md hidden items-center justify-center z-50">
+    <div class="glass w-[92%] max-w-lg" style="border-radius:20px;">
+        <div class="border-b border-white/5 px-6 py-4 flex justify-between items-center" style="background:rgba(10,17,35,0.5); border-radius:20px 20px 0 0;">
+            <h3 class="text-white font-black text-base brand-font"><i class="fa-solid fa-file-import text-emerald-400 mr-2"></i>Importar Matriz de Despacho</h3>
+            <button onclick="closeImportModal()" class="text-slate-500 hover:text-white transition text-xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-6">
+            <div class="dropzone group relative mb-4 p-8 text-center cursor-pointer" id="dropzone" onclick="document.getElementById('fileInput').click()">
+                <input type="file" id="fileInput" accept=".xlsx,.xls" class="hidden" onchange="handleFile(this.files[0])">
+                <div class="relative z-10 pointer-events-none">
+                    <i class="fa-solid fa-file-excel text-4xl text-emerald-400 mb-3 group-hover:-translate-y-1 transition-transform duration-300 inline-block"></i>
+                    <h3 class="text-sm font-black text-emerald-400 mb-1">Arrastra tu archivo .xlsx aquí</h3>
+                    <p class="text-slate-500 text-xs">Columnas: <span class="text-emerald-300 font-bold">CODIGO AX · CONTRATA · BRIGADA · UNIDAD · CANTIDAD</span></p>
+                </div>
+                <div id="uploading-ui" class="absolute inset-0 bg-slate-900/90 flex-col items-center justify-center z-20 hidden rounded-xl">
+                    <i class="fa-solid fa-satellite-dish fa-spin text-3xl text-blue-500 mb-2"></i>
+                    <span class="text-blue-300 text-xs font-black uppercase tracking-widest">Procesando...</span>
+                </div>
+            </div>
+            <div id="importResult" class="hidden mb-4 p-3 rounded-xl text-xs font-semibold"></div>
+            <div class="flex items-center justify-between">
+                <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+                    <input type="checkbox" id="modoReemplazo" class="accent-indigo-500">
+                    <span>Reemplazo físico (sobrescribir)</span>
+                </label>
+                <span class="text-[9px] text-slate-600"><i class="fa-solid fa-lock-open mr-1"></i>Procesamiento seguro en servidor</span>
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- ─── MODAL DE DESPACHO INDIVIDUAL ─── -->
-<div id="modalDespacho" class="fixed inset-0 bg-black/70 backdrop-blur-md hidden items-center justify-center z-50 transition-opacity opacity-0 duration-300">
-    <div class="glass w-[92%] max-w-lg transform scale-95 transition-all duration-300" id="modalBox" style="border-radius:20px;">
-        <div class="border-b border-white/5 px-6 py-4 flex justify-between items-center" style="background:rgba(15,23,42,0.5); border-radius:20px 20px 0 0;">
+{# ═══════════════════════════════════════════════════ #}
+{#  MODAL: DESPACHO INDIVIDUAL                         #}
+{# ═══════════════════════════════════════════════════ #}
+<div id="modalDespacho" class="fixed inset-0 bg-black/70 backdrop-blur-md hidden items-center justify-center z-50">
+    <div class="glass w-[92%] max-w-lg" style="border-radius:20px;">
+        <div class="border-b border-white/5 px-6 py-4 flex justify-between items-center" style="background:rgba(10,17,35,0.5); border-radius:20px 20px 0 0;">
             <h3 class="text-white font-black text-base brand-font"><i class="fa-solid fa-barcode text-blue-400 mr-2"></i>Despacho de Carga</h3>
             <button onclick="closeDespachoModal()" class="text-slate-500 hover:text-white transition text-xl"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="p-6">
-            <!-- Buscador material -->
             <div class="mb-5 relative">
                 <label class="block text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Buscar Material (AX, SAP o Nombre)</label>
                 <input type="text" id="descSearch" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="Escribe para buscar..." autocomplete="off">
-                <div id="searchResults" class="absolute w-full bg-slate-800 border border-white/10 rounded-xl shadow-2xl max-h-56 overflow-y-auto hidden z-50 mt-2 custom-scroll"></div>
+                <div id="searchResults" class="absolute w-full bg-slate-800 border border-white/10 rounded-xl shadow-2xl max-h-56 overflow-y-auto hidden z-50 mt-2 cscroll"></div>
             </div>
-
             <div id="selectedItemBlock" class="hidden mb-5 p-4 bg-blue-900/20 border border-blue-500/20 rounded-xl">
                 <div class="flex justify-between items-start">
                     <div>
-                        <div class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Material Fijado <span id="selCod" class="text-white bg-blue-500/20 px-2 py-0.5 rounded ml-1 font-mono"></span></div>
+                        <div class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Material fijado <span id="selCod" class="text-white bg-blue-500/20 px-2 py-0.5 rounded ml-1 font-mono"></span></div>
                         <div class="text-sm font-semibold text-slate-200" id="selDesc"></div>
                     </div>
                     <button onclick="clearSelection()" class="text-slate-500 hover:text-red-400 transition ml-4"><i class="fa-solid fa-times-circle text-lg"></i></button>
                 </div>
             </div>
-
             <div class="grid grid-cols-2 gap-4 mb-6">
                 <div>
                     <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Brigada Destino</label>
-                    <select id="brigadaDestino" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none uppercase appearance-none cursor-pointer">
+                    <select id="brigadaDestino" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none uppercase appearance-none">
                         <option value="" disabled selected>-- SELECCIONAR --</option>
                         {% for b in brigadas %}
                         <option value="{{ b }}">{{ b }}</option>
@@ -200,346 +317,501 @@
                 </div>
                 <div>
                     <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Cantidad</label>
-                    <input type="number" id="cantDespacho" min="0.1" step="0.1" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white text-right font-mono font-black focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="0">
+                    <input type="number" id="cantDespacho" min="0.1" step="0.1" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white text-right font-mono font-black focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0">
                 </div>
             </div>
-
-            <button id="btnGuardarDespacho" onclick="guardarDespacho()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black tracking-wider py-4 rounded-xl shadow-lg shadow-indigo-900/30 transition transform hover:-translate-y-0.5">
+            <button id="btnGuardarDespacho" onclick="guardarDespacho()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black tracking-wider py-4 rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
                 CONFIRMAR DESPACHO <i class="fa-solid fa-arrow-right-arrow-left ml-2"></i>
             </button>
         </div>
     </div>
 </div>
 
-<script>
-    let globalStock = [], curItem = null;
-    const zoneColors = { 'NORTE': 'zona-norte', 'SUR': 'zona-sur', 'CENTRO': 'zona-centro' };
-    function getZoneClass(z) { return zoneColors[(z || '').toUpperCase()] || 'zona-other'; }
+{# ═══════════════════════════════════════════════════ #}
+{#  MODAL: EDITAR STOCK (ADMIN)                        #}
+{# ═══════════════════════════════════════════════════ #}
+<div id="modalEditStock" class="fixed inset-0 bg-black/70 backdrop-blur-md hidden items-center justify-center z-50">
+    <div class="glass w-[92%] max-w-md" style="border-radius:20px;">
+        <div class="border-b border-white/5 px-6 py-4 flex justify-between items-center" style="background:rgba(10,17,35,0.5); border-radius:20px 20px 0 0;">
+            <h3 class="text-white font-black text-base brand-font"><i class="fa-solid fa-pen-to-square text-indigo-400 mr-2"></i>Editar Stock</h3>
+            <button onclick="closeEditModal()" class="text-slate-500 hover:text-white transition text-xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-6">
+            <div class="mb-5 p-3 bg-slate-800/60 rounded-xl border border-white/5">
+                <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Material</div>
+                <div class="text-sm font-bold text-slate-100" id="editModalDesc"></div>
+                <div class="text-[10px] font-mono text-indigo-400 mt-0.5" id="editModalBrigada"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Stock Actual</label>
+                    <input type="number" id="editStockActual" min="0" step="0.1" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-xl text-white text-right font-black font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Umbral Mínimo</label>
+                    <input type="number" id="editStockMinimo" min="0" step="0.1" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-xl text-white text-right font-black font-mono focus:ring-2 focus:ring-amber-500 outline-none transition">
+                </div>
+            </div>
+            <button id="btnGuardarEdit" onclick="guardarEdicion()" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-black tracking-wider py-4 rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
+                GUARDAR CAMBIOS <i class="fa-solid fa-check ml-2"></i>
+            </button>
+        </div>
+    </div>
+</div>
 
-    // ─── CARGA DE STOCK ───
+
+<script>
+    /* ── State ── */
+    let globalStock   = [];
+    let selectedBri   = null;   // null = all
+    let allBrigadas   = {};     // { brigada: { zona, pct, items } }
+    let curItem       = null;
+    let _editId       = null;
+    const IS_ADMIN    = {{ 'true' if role == 'admin' else 'false' }};
+
+    /* ── Zone helpers ── */
+    const zoneClasses = { NORTE:'z-norte', SUR:'z-sur', CENTRO:'z-centro' };
+    function zClass(z) { return zoneClasses[(z||'').toUpperCase()] || 'z-other'; }
+
+    /* ══════════════════════════════════════
+       DATA LOAD
+    ══════════════════════════════════════ */
     async function loadData() {
-        const zona = document.getElementById('filterZona').value;
+        const zona     = document.getElementById('filterZona').value;
+        const contrata = document.getElementById('filterContrata').value;
         let url = '/api/dashboard-stock-data';
-        if(zona) url += '?zona=' + encodeURIComponent(zona);
+        const params = [];
+        if(zona)     params.push('zona='     + encodeURIComponent(zona));
+        if(contrata) params.push('contrata=' + encodeURIComponent(contrata));
+        if(params.length) url += '?' + params.join('&');
         try {
-            const [stockRes, alertRes, zonaRes] = await Promise.all([
+            const [stockRes, alertRes] = await Promise.all([
                 fetch(url).then(r => r.json()),
-                fetch('/api/alertas-criticas').then(r => r.json()),
-                fetch('/api/stats-por-zona').then(r => r.json())
+                fetch('/api/alertas-criticas').then(r => r.json())
             ]);
             globalStock = Array.isArray(stockRes) ? stockRes : [];
-            renderTable(globalStock);
+            buildBrigadaIndex();
+            renderBrigadaPanel();
+            renderTable();
             renderAlertas(Array.isArray(alertRes) ? alertRes : []);
-            renderZonaStats(Array.isArray(zonaRes) ? zonaRes : []);
         } catch(e) { console.error(e); }
     }
+    function cambiarFiltro() { selectedBri = null; loadData(); }
+    function cambiarZona()   { cambiarFiltro(); }
 
-    function cambiarZona() { loadData(); }
+    /* ══════════════════════════════════════
+       BRIGADE INDEX
+    ══════════════════════════════════════ */
+    function buildBrigadaIndex() {
+        allBrigadas = {};
+        globalStock.forEach(r => {
+            const bri    = r.brigada || '—';
+            const actual  = parseFloat(r.stock_actual  || 0);
+            const inicial = parseFloat(r.stock_inicial || 0);
+            const minimo  = parseFloat(r.stock_minimo  || 0);
+            const pct     = inicial > 0 ? Math.min((actual/inicial)*100, 100) : (actual<=0?0:100);
+            const umbral  = minimo > 0 ? minimo : (inicial * 0.20);
+            const critico = actual <= umbral;
 
-    // ─── RENDER TABLA ───
-    function renderTable(data) {
-        const q = document.getElementById('searchBrigada').value.toUpperCase().trim();
-        const filtered = q.length < 2 ? data : data.filter(r =>
-            (r.brigada || '').toUpperCase().includes(q) ||
-            (r.cod_material || '').toUpperCase().includes(q) ||
-            (r.nombre_material || '').toUpperCase().includes(q)
-        );
+            if(!allBrigadas[bri]) {
+                allBrigadas[bri] = { zona: r.zona||'S/Z', items:0, criticos:0, pcts:[] };
+            }
+            allBrigadas[bri].items++;
+            allBrigadas[bri].pcts.push(pct);
+            if(critico) allBrigadas[bri].criticos++;
+        });
+        // compute average pct per brigade
+        Object.values(allBrigadas).forEach(b => {
+            b.avgPct = b.pcts.length ? b.pcts.reduce((a,v)=>a+v,0)/b.pcts.length : 0;
+        });
+    }
 
-        // Sort: por zona, brigada, después más crítico primero
-        filtered.sort((a, b) => {
-            if ((a.zona || '') !== (b.zona || '')) return (a.zona || '').localeCompare(b.zona || '');
-            if (a.brigada !== b.brigada) return a.brigada.localeCompare(b.brigada);
-            // Ordenar por porcentaje ascendente (más crítico primero)
-            const pa = (a.stock_actual / (a.stock_inicial || 1)) * 100;
-            const pb = (b.stock_actual / (b.stock_inicial || 1)) * 100;
-            return pa - pb;
+    /* ══════════════════════════════════════
+       BRIGADE PANEL RENDER
+    ══════════════════════════════════════ */
+    function renderBrigadaPanel() {
+        const q   = (document.getElementById('searchBrigadaPanel').value||'').toUpperCase();
+        const list = document.getElementById('brigadaList');
+        const allBtn = selectedBri === null;
+
+        const entries = Object.entries(allBrigadas)
+            .filter(([name]) => !q || name.toUpperCase().includes(q))
+            .sort((a,b) => a[0].localeCompare(b[0]));
+
+        document.getElementById('bri-count').textContent = entries.length;
+
+        let html = `
+        <div class="bri-card mb-1 ${allBtn?'active':''}" onclick="clearBrigadaFilter()">
+            <div class="health-dot bg-indigo-400" style="${allBtn?'':'opacity:.4'}"></div>
+            <div class="flex-1 min-w-0">
+                <div class="text-[11px] font-black text-slate-200 truncate">TODAS</div>
+                <div class="text-[9px] text-slate-500">${globalStock.length} materiales</div>
+            </div>
+        </div>`;
+
+        entries.forEach(([name, info]) => {
+            const active   = selectedBri === name;
+            const critColor = info.criticos > 0 ? 'bg-red-500 pulse-red' : (info.avgPct < 40 ? 'bg-amber-400' : 'bg-emerald-500');
+            const pctLabel  = info.avgPct.toFixed(0) + '%';
+            const zona      = info.zona;
+            html += `
+            <div class="bri-card ${active?'active':''}" onclick="selectBrigada('${name.replace(/'/g,"\\'")}')">
+                <div class="health-dot ${critColor}"></div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-[11px] font-black text-white truncate">${name}</div>
+                    <div class="text-[9px] text-slate-500">${info.items} items · ${zona}</div>
+                </div>
+                <div class="text-right shrink-0">
+                    <div class="text-[10px] font-black ${info.criticos>0?'text-red-400':'text-slate-400'}">${info.criticos>0?'⚠ '+info.criticos+' crit.':pctLabel}</div>
+                </div>
+            </div>`;
         });
 
+        list.innerHTML = html;
+    }
+
+    function filterBrigadas() { renderBrigadaPanel(); }
+
+    function selectBrigada(name) {
+        selectedBri = name;
+        document.getElementById('tableTitle').textContent = name;
+        document.getElementById('btnClearFilter').classList.remove('hidden');
+        renderBrigadaPanel();
+        renderTable();
+    }
+
+    function clearBrigadaFilter() {
+        selectedBri = null;
+        document.getElementById('tableTitle').textContent = 'Todas las brigadas';
+        document.getElementById('btnClearFilter').classList.add('hidden');
+        renderBrigadaPanel();
+        renderTable();
+    }
+
+    /* ══════════════════════════════════════
+       TABLE RENDER
+    ══════════════════════════════════════ */
+    function filterStock() { renderTable(); }
+
+    function renderTable() {
+        const q = (document.getElementById('searchMaterial').value||'').toUpperCase().trim();
+
+        let data = selectedBri
+            ? globalStock.filter(r => (r.brigada||'').toUpperCase() === selectedBri.toUpperCase())
+            : globalStock;
+
+        if(q.length >= 2) {
+            data = data.filter(r =>
+                (r.nombre_material||'').toUpperCase().includes(q) ||
+                (r.cod_material||'').toUpperCase().includes(q)    ||
+                (r.brigada||'').toUpperCase().includes(q)         ||
+                (r.contrata||'').toUpperCase().includes(q)
+            );
+        }
+
+        // Sort: criticos first, then by brigade
+        data.sort((a,b) => {
+            const pA = calcPct(a), pB = calcPct(b);
+            if((a.brigada||'') !== (b.brigada||'')) return (a.brigada||'').localeCompare(b.brigada||'');
+            return pA - pB;
+        });
+
+        // KPIs
+        const briSet = new Set(), uTotal = { val:0 }, nCrit = {v:0}, nBajo = {v:0};
+        globalStock.forEach(r => {
+            const actual = parseFloat(r.stock_actual||0);
+            const inicial= parseFloat(r.stock_inicial||0);
+            const minimo = parseFloat(r.stock_minimo||0);
+            const umbral = minimo>0 ? minimo : inicial*0.20;
+            const pct    = calcPct(r);
+            briSet.add(r.brigada);
+            uTotal.val += actual;
+            if(actual <= umbral) nCrit.v++;
+            else if(pct < 40) nBajo.v++;
+        });
+        document.getElementById('kpi-brigadas').textContent = briSet.size;
+        document.getElementById('kpi-total').textContent    = uTotal.val.toLocaleString('es-PE',{maximumFractionDigits:0});
+        document.getElementById('kpi-alertas').textContent  = nCrit.v;
+        document.getElementById('kpi-bajo').textContent     = nBajo.v;
+        document.getElementById('rowCount').textContent     = data.length + ' items';
+
         let html = '';
-        let uBrigadas = new Set(), totalItems = 0, cQuiebres = 0, cBajo = 0;
-
-        filtered.forEach(row => {
-            const actual  = parseFloat(row.stock_actual || 0);
+        data.forEach(row => {
+            const actual  = parseFloat(row.stock_actual  || 0);
             const inicial = parseFloat(row.stock_inicial || 0);
-            const minimo  = parseFloat(row.stock_minimo || 0);
-            let ptc = inicial > 0 ? Math.min((actual / inicial) * 100, 100) : (actual <= 0 ? 0 : 100);
-
-            // Umbral real: stock_minimo si existe, si no 20% del inicial
-            const umbral = minimo > 0 ? minimo : (inicial * 0.20);
-            const esCritico = actual <= umbral;
-            const esBajo    = !esCritico && (inicial > 0) && (actual <= inicial * 0.40);
-
-            uBrigadas.add(row.brigada);
-            totalItems += actual;
-            if(esCritico) cQuiebres++;
-            if(esCritico || esBajo) cBajo++;
+            const minimo  = parseFloat(row.stock_minimo  || 0);
+            const pct     = calcPct(row);
+            const umbral  = minimo > 0 ? minimo : (inicial * 0.20);
+            const esCrit  = actual <= umbral;
+            const esBajo  = !esCrit && inicial > 0 && actual <= inicial * 0.40;
 
             let barColor = 'bg-emerald-500', txtColor = 'text-emerald-400', glow = '';
-            if(esCritico) {
-                barColor = 'bg-red-500 animate-pulse'; txtColor = 'text-red-400 font-black';
-                glow = 'shadow-[0_0_12px_rgba(239,68,68,0.6)]';
-            } else if(esBajo) {
-                barColor = 'bg-amber-400'; txtColor = 'text-amber-400 font-bold';
-            }
+            if(esCrit)     { barColor='bg-red-500 animate-pulse'; txtColor='text-red-400 font-black'; glow='shadow-[0_0_10px_rgba(239,68,68,0.5)]'; }
+            else if(esBajo){ barColor='bg-amber-400'; txtColor='text-amber-400 font-bold'; }
 
             const zona   = row.zona || 'S/Z';
-            const zClass = getZoneClass(zona);
-            const minimoLabel = minimo > 0
-                ? `<span class="text-[9px] font-mono font-bold text-amber-400">${minimo.toLocaleString('es-PE',{maximumFractionDigits:1})}</span>`
-                : `<span class="text-[9px] text-slate-600 italic">20%</span>`;
+            const zCls   = zClass(zona);
+            const minLbl = minimo>0
+                ? `<span class="font-mono font-bold text-amber-400">${minimo.toLocaleString('es-PE',{maximumFractionDigits:1})}</span>`
+                : `<span class="text-slate-600 italic">20%</span>`;
 
-            html += `<tr class="tr-row">
-                <td class="px-5 py-3">
-                    <span class="text-[9px] font-black px-2 py-1 rounded-lg border ${zClass}">${zona}</span>
+            const safeBri  = (row.brigada||'').replace(/'/g,"&#39;");
+            const safeName = (row.nombre_material||'').replace(/'/g,"&#39;");
+
+            const adminCells = IS_ADMIN ? `
+            <td class="px-4 py-2.5">
+                <div class="flex items-center justify-center gap-1">
+                    <button onclick="openEditModal(${row.id},'${safeBri}','${safeName}',${actual},${minimo})"
+                        class="w-7 h-7 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-400 hover:text-indigo-300 flex items-center justify-center transition" title="Editar">
+                        <i class="fa-solid fa-pen-to-square text-[10px]"></i>
+                    </button>
+                    <button onclick="deleteStock(${row.id},'${safeBri}','${safeName}')"
+                        class="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/25 text-red-500 hover:text-red-400 flex items-center justify-center transition" title="Eliminar">
+                        <i class="fa-solid fa-trash-can text-[10px]"></i>
+                    </button>
+                </div>
+            </td>` : '';
+
+            html += `<tr class="tr-row fade-up">
+                <td class="px-4 py-2.5">
+                    <span class="text-[9px] font-black px-2 py-0.5 rounded-lg border ${zCls}">${zona}</span>
                 </td>
-                <td class="px-5 py-3">
-                    <span class="bg-slate-800/80 text-slate-300 border border-slate-700/60 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide">
+                <td class="px-4 py-2.5">
+                    <span class="bg-slate-800/80 text-slate-300 border border-slate-700/50 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wide">
                         <i class="fa-solid fa-user-astronaut text-slate-500 mr-1 text-[9px]"></i>${row.brigada}
                     </span>
                 </td>
-                <td class="px-5 py-3 font-mono text-blue-300 font-bold text-[10px] tracking-wider">${(row.cod_material || '').replace(/^0+/, '')}</td>
-                <td class="px-5 py-3 max-w-[220px]">
-                    <div class="truncate font-semibold text-slate-200 text-[11px]" title="${row.nombre_material}">${row.nombre_material}</div>
+                <td class="px-4 py-2.5 font-mono text-blue-300 font-bold text-[10px] tracking-wider">${(row.cod_material||'').replace(/^0+/,'')}</td>
+                <td class="px-4 py-2.5" style="max-width:260px;">
+                    <div class="truncate text-slate-200 text-[11px] font-semibold" title="${row.nombre_material}">${row.nombre_material}</div>
                 </td>
-                <td class="px-5 py-3 w-40">
+                <td class="px-4 py-2.5">
                     <div class="flex items-center gap-2">
-                        <div class="flex-1 progress-track">
-                            <div class="progress-fill ${barColor} ${glow}" style="width:${ptc}%"></div>
+                        <div class="flex-1 track" style="min-width:70px;">
+                            <div class="fill ${barColor} ${glow}" style="width:${pct}%"></div>
                         </div>
-                        <span class="text-[10px] font-bold ${txtColor} w-8 text-right shrink-0">${ptc.toFixed(0)}%</span>
+                        <span class="text-[10px] font-black ${txtColor} w-8 text-right shrink-0">${pct.toFixed(0)}%</span>
                     </div>
                 </td>
-                <td class="px-5 py-3 text-right cursor-pointer" onclick="editarMinimo(${row.id}, '${row.brigada}', '${row.nombre_material}', ${minimo})" title="Clic para editar umbral mínimo">
-                    ${minimoLabel} <i class="fa-solid fa-pen text-[8px] text-slate-600 hover:text-white ml-1"></i>
+                <td class="px-4 py-2.5 text-right text-[10px]">${minLbl}</td>
+                <td class="px-4 py-2.5 text-right">
+                    <span class="text-lg font-black ${txtColor} brand-font tracking-tighter">${actual.toLocaleString('es-PE',{maximumFractionDigits:1})}</span>
+                    <span class="text-[9px] text-slate-600 ml-0.5">u</span>
                 </td>
-                <td class="px-5 py-3 text-right">
-                    <span class="text-xl font-black ${txtColor} cursor-pointer tracking-tighter" onclick="editarDesfase(${row.id}, '${row.brigada}', '${row.nombre_material}', ${actual})">
-                        ${actual.toLocaleString('es-PE', {maximumFractionDigits: 1})}
-                        <i class="fa-solid fa-pen text-[9px] text-slate-600 hover:text-white transition ml-1"></i>
-                    </span>
-                </td>
+                ${adminCells}
             </tr>`;
         });
 
-        if(!html) html = `<tr><td colspan="6" class="px-5 py-12 text-center text-slate-600 text-xs font-bold uppercase tracking-widest">Sin resultados</td></tr>`;
+        const cols = IS_ADMIN ? 8 : 7;
+        if(!html) html = `<tr><td colspan="${cols}" class="px-5 py-16 text-center text-slate-600 text-xs font-bold uppercase tracking-widest">
+            <i class="fa-solid fa-box-open text-3xl block mb-3 text-slate-700"></i>Sin materiales registrados
+        </td></tr>`;
         document.getElementById('stockTbody').innerHTML = html;
-
-        // KPIs
-        document.getElementById('kpi-brigadas').textContent = uBrigadas.size;
-        document.getElementById('kpi-total').textContent = totalItems.toLocaleString('es-PE', {maximumFractionDigits: 0});
-        document.getElementById('kpi-alertas').textContent = cQuiebres;
-        document.getElementById('kpi-bajo').textContent = cBajo;
     }
 
-    // ─── PANEL ALERTAS ───
+    function calcPct(r) {
+        const a = parseFloat(r.stock_actual||0), i = parseFloat(r.stock_inicial||0);
+        return i>0 ? Math.min((a/i)*100,100) : (a<=0?0:100);
+    }
+
+    /* ══════════════════════════════════════
+       ALERTAS
+    ══════════════════════════════════════ */
+    let alertasOpen = true;
+    function toggleAlertas() {
+        alertasOpen = !alertasOpen;
+        document.getElementById('alertasBody').style.display = alertasOpen ? '' : 'none';
+        document.getElementById('alertasArrow').className = `fa-solid fa-chevron-${alertasOpen?'up':'down'} text-slate-500 text-[10px]`;
+    }
+
     function renderAlertas(data) {
         const panel = document.getElementById('panelAlertas');
-        const grid = document.getElementById('alertasGrid');
-
         if(!data.length) { panel.classList.add('hidden'); return; }
         panel.classList.remove('hidden');
 
-        const top = data.slice(0, 12);
-        grid.innerHTML = top.map(r => {
-            const ptc = r.porcentaje;
-            const isZero = ptc === 0;
-            const cardClass = isZero ? 'alerta-card' : 'alerta-card-amber';
-            const dotClass = isZero ? 'bg-red-500 animate-ping' : 'bg-amber-500 animate-ping';
-            const ptcClass = isZero ? 'text-red-400' : 'text-amber-400';
-            return `<div class="${cardClass} p-4">
-                <div class="flex items-start justify-between mb-2">
-                    <div>
-                        <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">${r.zona || 'S/Z'}</span>
-                        <div class="text-[11px] font-black text-slate-200 uppercase mt-0.5">${r.brigada}</div>
-                    </div>
-                    <div class="relative w-3 h-3 mt-1">
-                        <span class="absolute inline-flex h-full w-full rounded-full ${dotClass} opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-3 w-3 ${isZero ? 'bg-red-500' : 'bg-amber-500'}"></span>
-                    </div>
+        const top = data.slice(0, 15);
+        document.getElementById('alertasGrid').innerHTML = top.map(r => {
+            const isZero = r.porcentaje === 0;
+            const cls    = isZero ? 'alerta-pill' : 'alerta-pill-amber';
+            const ptcCls = isZero ? 'text-red-400' : 'text-amber-400';
+            return `<div class="${cls} flex items-center gap-2 cursor-pointer hover:opacity-80 transition" onclick="selectBrigada('${(r.brigada||'').replace(/'/g,"\\'")}')">
+                <div class="w-2 h-2 rounded-full ${isZero?'bg-red-500 pulse-red':'bg-amber-400'} shrink-0"></div>
+                <div class="min-w-0 flex-1">
+                    <div class="text-[9px] font-black text-slate-400 uppercase truncate">${r.brigada}</div>
+                    <div class="text-[10px] font-semibold text-slate-200 truncate leading-tight">${r.nombre_material}</div>
                 </div>
-                <div class="text-[10px] font-semibold text-slate-400 truncate mb-2">${r.nombre_material}</div>
-                <div class="flex items-end justify-between">
-                    <span class="font-mono text-[9px] text-slate-600">${(r.cod_material || '').replace(/^0+/, '')}</span>
-                    <div class="text-right">
-                        <div class="text-xl font-black ${ptcClass}">${ptc}%</div>
-                        <div class="text-[9px] text-slate-500">Quedan: ${parseFloat(r.stock_actual).toLocaleString('es-PE', {maximumFractionDigits: 1})} u</div>
-                    </div>
+                <div class="text-right shrink-0">
+                    <div class="text-sm font-black ${ptcCls}">${r.porcentaje.toFixed(0)}%</div>
+                    <div class="text-[9px] text-slate-600">${parseFloat(r.stock_actual||0).toLocaleString('es-PE',{maximumFractionDigits:0})} u</div>
                 </div>
             </div>`;
         }).join('');
     }
 
-    // ─── SALUD POR ZONA ───
-    function renderZonaStats(data) {
-        const el = document.getElementById('saludZonas');
-        const charts = document.getElementById('zonaCharts');
-        if(!data.length) { el.classList.add('hidden'); return; }
-        el.classList.remove('hidden');
+    /* ══════════════════════════════════════
+       MODAL: IMPORT
+    ══════════════════════════════════════ */
+    function openImportModal()  { const m=document.getElementById('modalImport'); m.classList.remove('hidden'); m.classList.add('flex'); }
+    function closeImportModal() { const m=document.getElementById('modalImport'); m.classList.add('hidden'); m.classList.remove('flex'); }
 
-        charts.innerHTML = data.map(z => {
-            const ptc = z.porcentaje_promedio;
-            const zClass = getZoneClass(z.zona);
-            let barBg = 'bg-emerald-500';
-            if(ptc <= 20) barBg = 'bg-red-500 animate-pulse';
-            else if(ptc <= 40) barBg = 'bg-amber-400';
-            return `<div class="glass-sm p-4 text-center">
-                <span class="text-[9px] font-black px-2 py-1 rounded-lg border ${zClass} mb-3 inline-block">${z.zona}</span>
-                <div class="text-2xl font-black text-white brand-font">${ptc}%</div>
-                <div class="progress-track my-2">
-                    <div class="progress-fill ${barBg}" style="width:${ptc}%"></div>
-                </div>
-                <div class="flex justify-between text-[9px] text-slate-600 font-bold">
-                    <span><i class="fa-solid fa-triangle-exclamation text-red-500 mr-1"></i>${z.items_criticos} crít.</span>
-                    <span>${z.total_items} items</span>
-                </div>
-            </div>`;
-        }).join('');
-    }
+    const dz = document.getElementById('dropzone');
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+    dz.addEventListener('dragleave',() => dz.classList.remove('over'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); handleFile(e.dataTransfer.files[0]); });
 
-    function filterStock() { renderTable(globalStock); }
-    setInterval(loadData, 20000);
-    loadData();
-
-    // ─── DRAG AND DROP ───
-    const dropZone = document.getElementById('drop-zone');
-    const fileInput = document.getElementById('fileInput');
-    ['dragenter','dragover','dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }));
-    ['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.add('over')));
-    ['dragleave','drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('over')));
-    dropZone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
-    fileInput.addEventListener('change', function() { handleFiles(this.files); });
-
-    async function handleFiles(files) {
-        if(!files.length) return;
-        const f = files[0];
-        if(!f.name.toLowerCase().match(/\.xlsx?$/)) { alert('Usa un archivo .xlsx'); return; }
-        const esR = document.getElementById('chkReemplazo').checked;
-        const msg = esR ? '⚠️ MODO REEMPLAZO: se sobrescribirán los saldos actuales. ¿Confirmas?' : '¿Cargar despacho nominal (suma a saldos existentes)?';
-        if(!confirm(msg)) return;
-
+    async function handleFile(file) {
+        if(!file) return;
         const ui = document.getElementById('uploading-ui');
-        ui.classList.remove('hidden'); ui.classList.add('flex');
-
-        const fd = new FormData();
-        fd.append('file', f);
-        if(esR) fd.append('modo', 'reemplazar');
-
+        const res= document.getElementById('importResult');
+        ui.classList.remove('hidden'); ui.style.display='flex';
+        res.classList.add('hidden');
+        const form = new FormData();
+        form.append('file', file);
+        form.append('modo', document.getElementById('modoReemplazo').checked ? 'reemplazar' : 'acumular');
         try {
-            const r = await fetch('/api/despacho-masivo', { method: 'POST', body: fd });
+            const r = await fetch('/api/despacho-masivo', { method:'POST', body:form });
             const d = await r.json();
-            if(d.ok) { alert('✅ ' + d.msg); loadData(); }
-            else alert('❌ ' + d.error);
-        } catch(e) { alert('❌ Error de red.'); }
-        finally {
-            ui.classList.add('hidden'); ui.classList.remove('flex');
-            fileInput.value = '';
-        }
-    }
-
-    // ─── MODAL DESPACHO ───
-    const modalD = document.getElementById('modalDespacho');
-    const mBox = document.getElementById('modalBox');
-    const inputDesc = document.getElementById('descSearch');
-    const results = document.getElementById('searchResults');
-
-    function openDespachoModal() {
-        modalD.classList.remove('hidden'); modalD.classList.add('flex');
-        setTimeout(() => { modalD.classList.remove('opacity-0'); mBox.classList.remove('scale-95'); inputDesc.focus(); }, 10);
-    }
-    function closeDespachoModal() {
-        modalD.classList.add('opacity-0'); mBox.classList.add('scale-95');
-        setTimeout(() => { modalD.classList.add('hidden'); modalD.classList.remove('flex'); clearSelection(); document.getElementById('cantDespacho').value = ''; }, 300);
-    }
-
-    inputDesc.addEventListener('input', async (e) => {
-        const q = e.target.value.trim();
-        if(q.length < 3) { results.classList.add('hidden'); return; }
-        try {
-            const res = await fetch('/api/search?q=' + encodeURIComponent(q));
-            const data = await res.json();
-            results.innerHTML = '';
-            if(!data.length) {
-                results.innerHTML = '<div class="p-4 text-xs text-slate-500 text-center font-bold uppercase tracking-widest">Sin resultados</div>';
+            res.classList.remove('hidden');
+            if(d.ok) {
+                res.className = 'mb-4 p-3 rounded-xl text-xs font-semibold bg-emerald-900/30 border border-emerald-500/30 text-emerald-300';
+                res.innerHTML = '<i class="fa-solid fa-check-circle mr-1"></i>' + d.msg;
+                loadData();
             } else {
-                data.forEach(it => {
-                    const d = document.createElement('div');
-                    d.className = 'p-3 border-b border-white/5 hover:bg-blue-600/15 cursor-pointer transition last:border-0';
-                    d.innerHTML = `<div class="text-blue-400 text-[10px] font-black">AX: ${it.codigo_visual.replace(/^0+/,'')}</div>
-                        <div class="text-slate-200 text-xs font-semibold mt-0.5 leading-tight">${it.descripcion}</div>`;
-                    d.onclick = () => selectItem(it);
-                    results.appendChild(d);
-                });
+                res.className = 'mb-4 p-3 rounded-xl text-xs font-semibold bg-red-900/30 border border-red-500/30 text-red-400';
+                res.innerHTML = '<i class="fa-solid fa-circle-xmark mr-1"></i>' + d.error;
             }
-            results.classList.remove('hidden');
-        } catch(e) {}
+        } catch(e) {
+            res.classList.remove('hidden');
+            res.className = 'mb-4 p-3 rounded-xl text-xs font-semibold bg-red-900/30 border border-red-500/30 text-red-400';
+            res.innerHTML = '<i class="fa-solid fa-circle-xmark mr-1"></i>Error de conexión.';
+        } finally { ui.style.display='none'; ui.classList.add('hidden'); }
+    }
+
+    /* ══════════════════════════════════════
+       MODAL: DESPACHO INDIVIDUAL
+    ══════════════════════════════════════ */
+    function openDespachoModal()  { const m=document.getElementById('modalDespacho'); m.classList.remove('hidden'); m.classList.add('flex'); }
+    function closeDespachoModal() { const m=document.getElementById('modalDespacho'); m.classList.add('hidden'); m.classList.remove('flex'); clearSelection(); }
+
+    let searchDelay;
+    document.getElementById('descSearch').addEventListener('input', function() {
+        clearTimeout(searchDelay);
+        searchDelay = setTimeout(() => fetchSearch(this.value), 300);
     });
 
-    function selectItem(it) {
-        curItem = it;
-        document.getElementById('selCod').textContent = it.codigo_visual.replace(/^0+/,'');
-        document.getElementById('selDesc').textContent = it.descripcion;
+    async function fetchSearch(q) {
+        if(q.length < 2) { document.getElementById('searchResults').classList.add('hidden'); return; }
+        try {
+            const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+            const data = await r.json();
+            const box = document.getElementById('searchResults');
+            if(!data.length) { box.classList.add('hidden'); return; }
+            box.innerHTML = data.map(i => `
+                <div class="px-4 py-3 text-sm text-slate-200 hover:bg-blue-600/20 cursor-pointer border-b border-white/5 last:border-0 transition"
+                    onclick="selectItem(${JSON.stringify(i).replace(/"/g,'&quot;')})">
+                    <div class="font-bold text-xs">${i.descripcion}</div>
+                    <div class="text-[10px] text-slate-500 mt-0.5 font-mono">AX: ${i.cod_ax||'—'} · SAP: ${i.cod_sap||'—'}</div>
+                </div>`).join('');
+            box.classList.remove('hidden');
+        } catch(e) {}
+    }
+
+    function selectItem(item) {
+        curItem = item;
+        document.getElementById('selCod').textContent  = item.codigo_visual || item.cod_ax || '—';
+        document.getElementById('selDesc').textContent = item.descripcion;
         document.getElementById('selectedItemBlock').classList.remove('hidden');
-        inputDesc.classList.add('hidden');
-        results.classList.add('hidden');
-        document.getElementById('brigadaDestino').focus();
+        document.getElementById('searchResults').classList.add('hidden');
+        document.getElementById('descSearch').value = '';
     }
     function clearSelection() {
         curItem = null;
         document.getElementById('selectedItemBlock').classList.add('hidden');
-        inputDesc.classList.remove('hidden');
-        inputDesc.value = '';
+        document.getElementById('descSearch').value = '';
     }
 
     async function guardarDespacho() {
-        if(!curItem) return alert('⚠️ Busca y fija el material.');
-        const bri = document.getElementById('brigadaDestino').value.trim();
+        if(!curItem) return alert('❌ Selecciona un material.');
+        const bri  = document.getElementById('brigadaDestino').value;
         const cant = parseFloat(document.getElementById('cantDespacho').value);
-        if(!bri) return alert('⚠️ Selecciona la brigada destino.');
-        if(!cant || cant <= 0) return alert('⚠️ Cantidad inválida.');
+        if(!bri)      return alert('❌ Selecciona una brigada.');
+        if(!cant||cant<=0) return alert('❌ Ingresa una cantidad válida.');
 
         const btn = document.getElementById('btnGuardarDespacho');
         btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Procesando...';
-        btn.disabled = true;
-
+        btn.disabled  = true;
         try {
-            const r = await fetch('/api/despachar-stock', {
-                method: 'POST', headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({ brigada: bri, cod_material: curItem.codigo_visual, nombre_material: curItem.descripcion, cantidad: cant })
-            });
+            const r = await fetch('/api/despachar-stock', { method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ brigada:bri, cod_material:curItem.codigo_visual, nombre_material:curItem.descripcion, cantidad:cant }) });
             const d = await r.json();
             if(d.ok) { closeDespachoModal(); loadData(); }
             else alert('❌ ' + d.error);
         } catch(e) { alert('❌ Error de red.'); }
-        finally {
-            btn.innerHTML = 'CONFIRMAR DESPACHO <i class="fa-solid fa-arrow-right-arrow-left ml-2"></i>';
-            btn.disabled = false;
-        }
+        finally { btn.innerHTML='CONFIRMAR DESPACHO <i class="fa-solid fa-arrow-right-arrow-left ml-2"></i>'; btn.disabled=false; }
     }
 
-    async function editarDesfase(id, brigada, material, actual) {
-        const nvo = prompt(`Ajuste Manual\n\n[${brigada}]\n${material}\n\nStock sensor: ${actual}\nIngresa el valor físico real:`, actual);
-        if(nvo === null || nvo === '') return;
-        const val = parseFloat(nvo);
-        if(isNaN(val) || val < 0) return alert('❌ Valor inválido.');
+    /* ══════════════════════════════════════
+       MODAL: EDITAR STOCK (ADMIN)
+    ══════════════════════════════════════ */
+    function openEditModal(id, brigada, desc, stockActual, stockMinimo) {
+        _editId = id;
+        document.getElementById('editModalDesc').textContent    = desc;
+        document.getElementById('editModalBrigada').textContent = brigada;
+        document.getElementById('editStockActual').value  = stockActual;
+        document.getElementById('editStockMinimo').value  = stockMinimo || 0;
+        const m = document.getElementById('modalEditStock');
+        m.classList.remove('hidden'); m.classList.add('flex');
+        document.getElementById('editStockActual').focus();
+    }
+    function closeEditModal() {
+        document.getElementById('modalEditStock').classList.add('hidden');
+        document.getElementById('modalEditStock').classList.remove('flex');
+        _editId = null;
+    }
+    async function guardarEdicion() {
+        if(_editId === null) return;
+        const nuevoStock  = parseFloat(document.getElementById('editStockActual').value);
+        const nuevoMinimo = parseFloat(document.getElementById('editStockMinimo').value);
+        if(isNaN(nuevoStock)||nuevoStock<0) return alert('❌ Stock inválido.');
+        if(isNaN(nuevoMinimo)||nuevoMinimo<0) return alert('❌ Mínimo inválido.');
+
+        const btn = document.getElementById('btnGuardarEdit');
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Guardando...';
+        btn.disabled  = true;
         try {
-            const r = await fetch('/api/corregir-stock', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, nuevo_stock: val}) });
+            const [r1,r2] = await Promise.all([
+                fetch('/api/corregir-stock', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:_editId, nuevo_stock:nuevoStock}) }),
+                fetch('/api/ajustar-minimo', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:_editId, stock_minimo:nuevoMinimo}) })
+            ]);
+            const [d1,d2] = await Promise.all([r1.json(), r2.json()]);
+            if(d1.ok && d2.ok) { closeEditModal(); loadData(); }
+            else alert('❌ ' + (d1.error || d2.error || 'Error al guardar.'));
+        } catch(e) { alert('❌ Error de conexión.'); }
+        finally { btn.innerHTML='GUARDAR CAMBIOS <i class="fa-solid fa-check ml-2"></i>'; btn.disabled=false; }
+    }
+
+    /* ══════════════════════════════════════
+       DELETE STOCK (ADMIN)
+    ══════════════════════════════════════ */
+    async function deleteStock(id, brigada, material) {
+        if(!confirm(`⚠️ ELIMINAR del inventario\n\n[${brigada}]\n${material}\n\nEsta acción no se puede deshacer. ¿Confirmas?`)) return;
+        try {
+            const r = await fetch('/api/eliminar-stock', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) });
             const d = await r.json();
             if(d.ok) loadData();
             else alert('❌ ' + d.error);
-        } catch(e) { alert('❌ Error de conexión.'); }
+        } catch(e) { alert('❌ Error de red.'); }
     }
 
-    async function editarMinimo(id, brigada, material, minimoActual) {
-        const nvo = prompt(`⚠️ Umbral Mínimo de Alerta\n\n[${brigada}]\n${material}\n\nMínimo actual: ${minimoActual > 0 ? minimoActual + ' unidades' : 'Sin definir (usa 20% automático)'}\n\nIngresa la cantidad mínima que debe tener la brigada:`, minimoActual || '');
-        if(nvo === null || nvo === '') return;
-        const val = parseFloat(nvo);
-        if(isNaN(val) || val < 0) return alert('❌ Valor inválido.');
-        try {
-            const r = await fetch('/api/ajustar-minimo', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, stock_minimo: val}) });
-            const d = await r.json();
-            if(d.ok) { loadData(); }
-            else alert('❌ ' + d.error);
-        } catch(e) { alert('❌ Error de conexión.'); }
-    }
+    /* ── Global Escape handler ── */
+    document.addEventListener('keydown', e => {
+        if(e.key === 'Escape') {
+            closeEditModal(); closeDespachoModal(); closeImportModal();
+        }
+    });
+
+    /* ── Boot ── */
+    loadData();
+    setInterval(loadData, 60000); // auto-refresh every 60s
 </script>
 {% endblock %}

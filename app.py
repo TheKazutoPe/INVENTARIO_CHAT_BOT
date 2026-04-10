@@ -118,10 +118,18 @@ def get_identifier(b_data):
     return id_unico
 
 def get_brigada_zone_map():
-    """Devuelve un mapa {brigada_main: ZONA} desde brigada_tabla."""
+    """Devuelve un mapa {brigada_main: {zona, contrata}} desde brigada_tabla."""
     try:
-        res = supabase.table('brigada_tabla').select('brigada_main, "ZONA"').execute()
-        return {r['brigada_main']: r.get('ZONA', 'SIN ZONA') for r in (res.data or []) if r.get('brigada_main')}
+        res = supabase.table('brigada_tabla').select('brigada_main, "ZONA", contrata_bd').execute()
+        result = {}
+        for r in (res.data or []):
+            bm = r.get('brigada_main', '')
+            if bm:
+                result[bm] = {
+                    'zona':     r.get('ZONA', 'SIN ZONA'),
+                    'contrata': r.get('contrata_bd', '') or ''
+                }
+        return result
     except:
         return {}
 
@@ -850,26 +858,31 @@ def delete_item():
 @login_required
 def dashboard_stock():
     try:
-        res_bri = supabase.table('brigada_tabla').select('brigada_main, "ZONA"').execute()
+        res_bri = supabase.table('brigada_tabla').select('brigada_main, "ZONA", contrata_bd').execute()
         brigadas_raw = {}
-        zonas_set = set()
+        zonas_set    = set()
+        contratas_set = set()
         for item in (res_bri.data or []):
-            bm = item.get('brigada_main', '').strip()
+            bm   = item.get('brigada_main', '').strip()
             zona = item.get('ZONA', 'SIN ZONA')
+            cont = item.get('contrata_bd', '') or ''
             if bm:
                 brigadas_raw[bm] = zona
-                if zona:
-                    zonas_set.add(zona)
-        brigadas_list = sorted(brigadas_raw.keys())
-        zonas_list = sorted(zonas_set)
+                if zona: zonas_set.add(zona)
+                if cont: contratas_set.add(cont)
+        brigadas_list  = sorted(brigadas_raw.keys())
+        zonas_list     = sorted(zonas_set)
+        contratas_list = sorted(contratas_set)
     except Exception as e:
         print("Error recuperando brigadas:", e)
-        brigadas_list = []
-        zonas_list = []
+        brigadas_list  = []
+        zonas_list     = []
+        contratas_list = []
 
     return render_template('dashboard_stock.html',
                            brigadas=brigadas_list,
                            zonas=zonas_list,
+                           contratas=contratas_list,
                            user_name=session.get('user_name', ''),
                            role=session.get('role', ''))
 
@@ -878,18 +891,23 @@ def dashboard_stock():
 @login_required
 def get_dashboard_stock_data():
     try:
-        zona_filter = request.args.get('zona', '')
+        zona_filter     = request.args.get('zona', '')
+        contrata_filter = request.args.get('contrata', '')
         res = supabase.table('stock_brigadas').select("*").execute()
         data = res.data or []
 
-        # Enriquecer con zona
-        zone_map = get_brigada_zone_map()
+        # Enriquecer con zona y contrata
+        bri_map = get_brigada_zone_map()
         for r in data:
-            bri = r.get('brigada', '')
-            r['zona'] = zone_map.get(bri, 'SIN ZONA')
+            bri  = r.get('brigada', '')
+            info = bri_map.get(bri, {})
+            r['zona']     = info.get('zona', 'SIN ZONA') if isinstance(info, dict) else str(info)
+            r['contrata'] = info.get('contrata', '') if isinstance(info, dict) else ''
 
         if zona_filter:
             data = [r for r in data if r.get('zona', '').upper() == zona_filter.upper()]
+        if contrata_filter:
+            data = [r for r in data if (r.get('contrata') or '').upper() == contrata_filter.upper()]
 
         return jsonify(data)
     except Exception as e:
@@ -1076,9 +1094,29 @@ def corregir_stock():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/eliminar-stock', methods=['POST'])
+@admin_required
+def eliminar_stock():
+    """Elimina permanentemente una fila de stock_brigadas. Solo admin."""
+    d = request.json
+    try:
+        item_id = d.get('id')
+        if not item_id:
+            return jsonify({'error': 'ID requerido'}), 400
+        supabase.table('stock_brigadas').delete().eq('id', item_id).execute()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/despacho-masivo', methods=['POST'])
 @login_required
 def despacho_masivo():
+    """
+    Carga masiva de stock desde Excel.
+    Columnas requeridas: CODIGO AX | CONTRATA | BRIGADA | UNIDAD | CANTIDAD
+    El nombre del material se resuelve automáticamente desde catalogo_unificado.
+    """
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No se encontró archivo en la petición'}), 400
@@ -1091,33 +1129,76 @@ def despacho_masivo():
         cols_upper = [str(c).upper().strip() for c in df.columns]
         df.columns = cols_upper
 
-        col_cod = next((c for c in cols_upper if 'COD' in c or 'AX' in c), None)
-        col_bri = next((c for c in cols_upper if 'BRIGADA' in c), None)
-        col_cant = next((c for c in cols_upper if 'CANTIDAD' in c or 'CANT' in c), None)
-        col_desc = next((c for c in cols_upper if ('DESC' in c or 'MATERIAL' in c) and 'CANT' not in c), None)
+        # ── Mapeo flexible de columnas ──────────────────────────────────
+        col_cod   = next((c for c in cols_upper if 'AX' in c or ('COD' in c and 'CONTRATA' not in c)), None)
+        col_bri   = next((c for c in cols_upper if 'BRIGADA' in c), None)
+        col_cant  = next((c for c in cols_upper if 'CANTIDAD' in c or 'CANT' in c), None)
+        col_cont  = next((c for c in cols_upper if 'CONTRATA' in c or 'EMPRESA' in c), None)
+        col_unid  = next((c for c in cols_upper if 'UNIDAD' in c or 'UNID' in c), None)
 
         if not col_cod or not col_bri or not col_cant:
-            return jsonify({'error': 'El archivo debe contener columnas para CÓDIGO/AX, BRIGADA y CANTIDAD.'}), 400
+            return jsonify({'error':
+                'El archivo debe tener columnas: CODIGO AX, BRIGADA, CANTIDAD. '
+                f'Columnas detectadas: {", ".join(cols_upper)}'}), 400
 
         df = df[df[col_cant].notnull()]
         df[col_cant] = pd.to_numeric(df[col_cant], errors='coerce').fillna(0)
         df = df[df[col_cant] > 0]
 
+        if df.empty:
+            return jsonify({'error': 'No se encontraron filas con cantidad válida > 0'}), 400
+
+        # ── Resolver nombres desde catalogo_unificado ───────────────────
+        # Recolectar todos los códigos AX únicos del Excel
+        codigos_ax = list(set(
+            str(row[col_cod]).strip().lstrip('0')
+            for _, row in df.iterrows()
+            if pd.notna(row[col_cod]) and str(row[col_cod]).strip() not in ('', 'nan', 'None')
+        ))
+
+        nombre_map = {}  # { cod_ax_limpio → descripcion }
+        if codigos_ax:
+            try:
+                # Buscar en catálogo por lotes de 100
+                for i in range(0, len(codigos_ax), 100):
+                    lote = codigos_ax[i:i+100]
+                    cat_res = supabase.table('catalogo_unificado') \
+                        .select('cod_ax, descripcion, empresa') \
+                        .in_('cod_ax', lote) \
+                        .execute()
+                    for c in (cat_res.data or []):
+                        ax_clean = str(c.get('cod_ax', '')).strip().lstrip('0')
+                        if ax_clean and ax_clean not in nombre_map:
+                            nombre_map[ax_clean] = c.get('descripcion', '').strip()
+            except Exception as cat_e:
+                print(f"Advertencia catálogo: {cat_e}")
+
+        # ── Procesar filas ───────────────────────────────────────────────
         now = datetime.datetime.now().isoformat()
-        stock_res = supabase.table('stock_brigadas').select('id, brigada, cod_material, stock_actual, stock_inicial, stock_minimo').execute()
+        stock_res = supabase.table('stock_brigadas') \
+            .select('id, brigada, cod_material, stock_actual, stock_inicial, stock_minimo') \
+            .execute()
         stock_map = {(d['brigada'].upper(), d['cod_material']): d for d in (stock_res.data or [])}
 
-        # Detectar columna stock_minimo en el excel (opcional)
-        col_min = next((c for c in cols_upper if 'MINIMO' in c or 'MIN' in c), None)
+        ops_insert  = []
+        procesados  = 0
+        sin_nombre  = []
 
-        ops_insert = []
-        for index, row in df.iterrows():
-            bri    = str(row[col_bri]).upper().strip()
-            cod    = str(row[col_cod]).strip().lstrip('0')
-            desc   = str(row[col_desc]).strip() if col_desc else f"Material {cod}"
-            cant   = float(row[col_cant])
-            minimo = float(row[col_min]) if col_min and pd.notna(row[col_min]) else 0
-            key    = (bri, cod)
+        for _, row in df.iterrows():
+            bri  = str(row[col_bri]).upper().strip()
+            cod  = str(row[col_cod]).strip().lstrip('0')
+            cant = float(row[col_cant])
+
+            if not bri or not cod or cant <= 0:
+                continue
+
+            nombre = nombre_map.get(cod, '')
+            if not nombre:
+                # Guardar como fallback y reportar al final
+                nombre = f'AX-{cod}'
+                sin_nombre.append(cod)
+
+            key = (bri, cod)
 
             if key in stock_map:
                 item = stock_map[key]
@@ -1128,31 +1209,34 @@ def despacho_masivo():
                     nuevo_stock   = float(item['stock_actual']) + cant
                     nuevo_inicial = float(item.get('stock_inicial') or 0) + cant
 
-                update_payload = {
-                    'stock_actual':  nuevo_stock,
-                    'stock_inicial': nuevo_inicial,
-                    'nombre_material': desc,
-                    'updated_at':    now
-                }
-                if minimo > 0:
-                    update_payload['stock_minimo'] = minimo
-                supabase.table('stock_brigadas').update(update_payload).eq('id', item['id']).execute()
+                supabase.table('stock_brigadas').update({
+                    'stock_actual':    nuevo_stock,
+                    'stock_inicial':   nuevo_inicial,
+                    'nombre_material': nombre,
+                    'updated_at':      now
+                }).eq('id', item['id']).execute()
             else:
                 ops_insert.append({
                     'brigada':         bri,
                     'cod_material':    cod,
-                    'nombre_material': desc,
+                    'nombre_material': nombre,
                     'stock_actual':    cant,
                     'stock_inicial':   cant,
-                    'stock_minimo':    minimo,
+                    'stock_minimo':    0,
                     'updated_at':      now
                 })
+
+            procesados += 1
 
         if ops_insert:
             for i in range(0, len(ops_insert), 500):
                 supabase.table('stock_brigadas').insert(ops_insert[i:i+500]).execute()
 
-        return jsonify({'ok': True, 'msg': f"Se procesaron {len(df)} registros con éxito."})
+        msg = f"Se procesaron {procesados} registros con éxito."
+        if sin_nombre:
+            msg += f" ({len(sin_nombre)} código(s) no encontrados en catálogo, guardados como AX-código: {', '.join(sin_nombre[:5])}{'...' if len(sin_nombre) > 5 else ''})"
+
+        return jsonify({'ok': True, 'msg': msg})
     except Exception as e:
         print(f"Error Masivo: {e}")
         return jsonify({'error': str(e)}), 500

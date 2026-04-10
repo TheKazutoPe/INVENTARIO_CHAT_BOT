@@ -133,6 +133,20 @@ def get_brigada_zone_map():
     except:
         return {}
 
+def zone_of(zone_map, brigada, fallback='SIN ZONA'):
+    """Extrae la zona string del mapa, tolerante a dict o str."""
+    val = zone_map.get(brigada, {})
+    if isinstance(val, dict):
+        return val.get('zona', fallback)
+    return str(val) if val else fallback
+
+def contrata_of(zone_map, brigada):
+    """Extrae la contrata string del mapa."""
+    val = zone_map.get(brigada, {})
+    if isinstance(val, dict):
+        return val.get('contrata', '')
+    return ''
+
 # =====================================================================
 #  AUTENTICACIÓN
 # =====================================================================
@@ -342,11 +356,11 @@ def get_acumulados_data():
         for r in data:
             bri = r.get('brigada_responsable', '')
             if bri and not r.get('zona_brigada'):
-                r['zona_brigada'] = zone_map.get(bri, r.get('region', 'SIN ZONA'))
+                r['zona_brigada'] = zone_of(zone_map, bri, r.get('region', 'SIN ZONA'))
 
         # Filtro por zona (post-enriquecimiento)
         if zona_filter:
-            data = [r for r in data if r.get('zona_brigada', '').upper() == zona_filter.upper()]
+            data = [r for r in data if str(r.get('zona_brigada', '')).upper() == zona_filter.upper()]
 
         # Ocultar datos financieros para contratas (role='user')
         CAMPOS_FINANCIEROS = ('precio_unit', 'subtotal', 'total_soles', 'tc', 'moneda')
@@ -387,8 +401,8 @@ def resumen_semanal():
             except:
                 semana_key = "SIN FECHA"
 
-            bri = r.get('brigada_responsable', 'SIN BRIGADA')
-            zona = zone_map.get(bri, 'SIN ZONA')
+            bri  = r.get('brigada_responsable', 'SIN BRIGADA')
+            zona = zone_of(zone_map, bri, 'SIN ZONA')
             cant = float(r.get('cant_material', 0))
             costo = float(r.get('precio_unit', 0))
 
@@ -523,7 +537,7 @@ def exportar_excel():
         zone_map = get_brigada_zone_map()
         for r in data:
             bri = r.get('brigada_responsable', '')
-            r['zona_brigada'] = zone_map.get(bri, r.get('region', ''))
+            r['zona_brigada'] = zone_of(zone_map, bri, r.get('region', ''))
 
         # Filtro zona post-enriquecimiento
         if zona_filter:
@@ -643,7 +657,7 @@ def exportar_semanal():
                 'SEMANA': semana_key,
                 'MES': mes,
                 'BRIGADA': bri,
-                'ZONA': zone_map.get(bri, ''),
+                'ZONA': zone_of(zone_map, bri, ''),
                 'COD MATERIAL': str(r.get('cod_material', '')).lstrip('0'),
                 'MATERIAL': r.get('nombre_material', ''),
                 'CANTIDAD': float(r.get('cant_material', 0)),

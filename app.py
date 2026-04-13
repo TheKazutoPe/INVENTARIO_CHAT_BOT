@@ -910,13 +910,16 @@ def get_dashboard_stock_data():
         res = supabase.table('stock_brigadas').select("*").execute()
         data = res.data or []
 
-        # Enriquecer con zona y contrata
+        # Enriquecer con zona y contrata desde brigada_tabla
+        # La contrata guardada en stock_brigadas tiene prioridad sobre el join
         bri_map = get_brigada_zone_map()
         for r in data:
             bri  = r.get('brigada', '')
             info = bri_map.get(bri, {})
-            r['zona']     = info.get('zona', 'SIN ZONA') if isinstance(info, dict) else str(info)
-            r['contrata'] = info.get('contrata', '') if isinstance(info, dict) else ''
+            r['zona'] = info.get('zona', 'SIN ZONA') if isinstance(info, dict) else str(info)
+            # Prioridad: columna contrata de la fila → join brigada_tabla
+            if not r.get('contrata'):
+                r['contrata'] = info.get('contrata', '') if isinstance(info, dict) else ''
 
         if zona_filter:
             data = [r for r in data if r.get('zona', '').upper() == zona_filter.upper()]
@@ -1028,18 +1031,19 @@ def stats_por_zona():
 def despachar_stock():
     d = request.json
     try:
-        bri    = d.get('brigada').strip().upper()
-        cod    = d.get('cod_material').strip()
-        nombre = d.get('nombre_material', '').strip()
-        cant   = float(d.get('cantidad', 0))
-        minimo = float(d.get('stock_minimo', 0))  # Umbral configurable
-        now    = datetime.datetime.now().isoformat()
+        bri      = d.get('brigada').strip().upper()
+        cod      = d.get('cod_material').strip()
+        nombre   = d.get('nombre_material', '').strip()
+        cant     = float(d.get('cantidad', 0))
+        minimo   = float(d.get('stock_minimo', 0))  # Umbral configurable
+        contrata = str(d.get('contrata', '') or '').strip().upper()
+        now      = datetime.datetime.now().isoformat()
 
         if cant <= 0:
             return jsonify({'error': 'La cantidad debe ser mayor a 0'}), 400
 
         exist_res = supabase.table('stock_brigadas') \
-            .select('id, stock_actual, stock_inicial, stock_minimo') \
+            .select('id, stock_actual, stock_inicial, stock_minimo, contrata') \
             .eq('brigada', bri).eq('cod_material', cod).execute()
 
         if exist_res.data:
@@ -1054,16 +1058,19 @@ def despachar_stock():
             }
             if minimo > 0:
                 update_payload['stock_minimo'] = minimo
+            if contrata:
+                update_payload['contrata'] = contrata
             supabase.table('stock_brigadas').update(update_payload).eq('id', item['id']).execute()
         else:
             supabase.table('stock_brigadas').insert([{
-                'brigada':        bri,
-                'cod_material':   cod,
+                'brigada':         bri,
+                'cod_material':    cod,
                 'nombre_material': nombre,
-                'stock_actual':   cant,
-                'stock_inicial':  cant,
-                'stock_minimo':   minimo,
-                'updated_at':     now
+                'stock_actual':    cant,
+                'stock_inicial':   cant,
+                'stock_minimo':    minimo,
+                'contrata':        contrata,
+                'updated_at':      now
             }]).execute()
 
         return jsonify({'ok': True})
@@ -1123,13 +1130,82 @@ def eliminar_stock():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/backfill-contratas', methods=['POST'])
+@admin_required
+def backfill_contratas():
+    """
+    Rellena la columna 'contrata' de stock_brigadas para todos los registros
+    que la tengan vacía o nula, cruzando con brigada_tabla.
+    Operación segura: solo actualiza, nunca elimina.
+    """
+    try:
+        # Cargar mapa oficial brigada → contrata
+        bri_res = supabase.table('brigada_tabla') \
+            .select('brigada_main, contrata_bd') \
+            .execute()
+        bri_map = {}
+        for b in (bri_res.data or []):
+            bm = str(b.get('brigada_main') or '').strip().upper()
+            ct = str(b.get('contrata_bd') or '').strip().upper()
+            if bm and ct:
+                bri_map[bm] = ct
+
+        if not bri_map:
+            return jsonify({'error': 'No se pudo cargar brigada_tabla'}), 500
+
+        # Obtener registros de stock sin contrata
+        stock_res = supabase.table('stock_brigadas') \
+            .select('id, brigada, contrata') \
+            .execute()
+
+        now = datetime.datetime.now().isoformat()
+        actualizados  = 0
+        sin_brigada   = []   # brigadas en stock no registradas en brigada_tabla
+
+        for r in (stock_res.data or []):
+            # Solo procesar filas sin contrata
+            if r.get('contrata'):
+                continue
+
+            bri = str(r.get('brigada') or '').strip().upper()
+            contrata_oficial = bri_map.get(bri, '')
+
+            if not contrata_oficial:
+                sin_brigada.append(bri)
+                continue
+
+            supabase.table('stock_brigadas').update({
+                'contrata':   contrata_oficial,
+                'updated_at': now
+            }).eq('id', r['id']).execute()
+            actualizados += 1
+
+        msg = f"✅ {actualizados} registro(s) actualizados con su contrata oficial."
+        response = {'ok': True, 'actualizados': actualizados, 'msg': msg}
+
+        if sin_brigada:
+            uniq = list(dict.fromkeys(sin_brigada))
+            response['warning'] = (
+                f"⚠️ {len(uniq)} brigada(s) en stock sin coincidencia en brigada_tabla "
+                f"(no se pudo rellenar su contrata): "
+                f"{', '.join(uniq[:10])}{'...' if len(uniq) > 10 else ''}"
+            )
+
+        return jsonify(response)
+    except Exception as e:
+        print(f"Error backfill contratas: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/despacho-masivo', methods=['POST'])
 @login_required
 def despacho_masivo():
     """
     Carga masiva de stock desde Excel.
     Columnas requeridas: CODIGO AX | CONTRATA | BRIGADA | UNIDAD | CANTIDAD
-    El nombre del material se resuelve automáticamente desde catalogo_unificado.
+    Validación previa contra brigada_tabla:
+      - Brigadas no registradas son RECHAZADAS.
+      - La contrata oficial de BD tiene prioridad; se reportan discrepancias.
     """
     try:
         if 'file' not in request.files:
@@ -1162,6 +1238,23 @@ def despacho_masivo():
         if df.empty:
             return jsonify({'error': 'No se encontraron filas con cantidad válida > 0'}), 400
 
+        # ── Cargar brigada_tabla para validación ────────────────────────
+        # { brigada_main_upper → { zona, contrata } }
+        brigada_bd_map = {}
+        try:
+            bri_res = supabase.table('brigada_tabla') \
+                .select('brigada_main, "ZONA", contrata_bd') \
+                .execute()
+            for b in (bri_res.data or []):
+                bm = str(b.get('brigada_main') or '').strip().upper()
+                if bm:
+                    brigada_bd_map[bm] = {
+                        'zona':     b.get('ZONA', ''),
+                        'contrata': str(b.get('contrata_bd') or '').strip().upper()
+                    }
+        except Exception as bri_e:
+            print(f"Advertencia brigada_tabla: {bri_e}")
+
         # ── Resolver nombres desde catalogo_unificado ───────────────────
         # Recolectar todos los códigos AX únicos del Excel
         codigos_ax = list(set(
@@ -1190,13 +1283,15 @@ def despacho_masivo():
         # ── Procesar filas ───────────────────────────────────────────────
         now = datetime.datetime.now().isoformat()
         stock_res = supabase.table('stock_brigadas') \
-            .select('id, brigada, cod_material, stock_actual, stock_inicial, stock_minimo') \
+            .select('id, brigada, cod_material, stock_actual, stock_inicial, stock_minimo, contrata') \
             .execute()
         stock_map = {(d['brigada'].upper(), d['cod_material']): d for d in (stock_res.data or [])}
 
-        ops_insert  = []
-        procesados  = 0
-        sin_nombre  = []
+        ops_insert         = []
+        procesados         = 0
+        sin_nombre         = []
+        brigadas_invalidas = []   # brigadas no halladas en brigada_tabla
+        discrepancias_cont = []   # contrata en Excel difiere de la oficial en BD
 
         for _, row in df.iterrows():
             bri  = str(row[col_bri]).upper().strip()
@@ -1206,9 +1301,32 @@ def despacho_masivo():
             if not bri or not cod or cant <= 0:
                 continue
 
+            # ── Validar brigada contra brigada_tabla ─────────────────────
+            if brigada_bd_map and bri not in brigada_bd_map:
+                brigadas_invalidas.append(bri)
+                continue  # Rechazar fila con brigada desconocida
+
+            # ── Resolver contrata oficial desde BD ──────────────────────
+            contrata_oficial = brigada_bd_map.get(bri, {}).get('contrata', '')
+
+            # Leer contrata del Excel solo para contrastar
+            contrata_excel = ''
+            if col_cont:
+                raw_cont = row.get(col_cont, '')
+                if pd.notna(raw_cont):
+                    contrata_excel = str(raw_cont).strip().upper()
+
+            # Detectar discrepancia (informativa, no bloquea la carga)
+            if contrata_excel and contrata_oficial and contrata_excel != contrata_oficial:
+                discrepancias_cont.append(
+                    f"{bri}: Excel='{contrata_excel}' → BD='{contrata_oficial}'"
+                )
+
+            # Siempre se guarda la contrata oficial de brigada_tabla
+            contrata_val = contrata_oficial or contrata_excel
+
             nombre = nombre_map.get(cod, '')
             if not nombre:
-                # Guardar como fallback y reportar al final
                 nombre = f'AX-{cod}'
                 sin_nombre.append(cod)
 
@@ -1223,12 +1341,17 @@ def despacho_masivo():
                     nuevo_stock   = float(item['stock_actual']) + cant
                     nuevo_inicial = float(item.get('stock_inicial') or 0) + cant
 
-                supabase.table('stock_brigadas').update({
+                update_payload = {
                     'stock_actual':    nuevo_stock,
                     'stock_inicial':   nuevo_inicial,
                     'nombre_material': nombre,
                     'updated_at':      now
-                }).eq('id', item['id']).execute()
+                }
+                # Sólo actualizar contrata si viene en el Excel (no sobreescribir con vacío)
+                if contrata_val:
+                    update_payload['contrata'] = contrata_val
+
+                supabase.table('stock_brigadas').update(update_payload).eq('id', item['id']).execute()
             else:
                 ops_insert.append({
                     'brigada':         bri,
@@ -1237,6 +1360,7 @@ def despacho_masivo():
                     'stock_actual':    cant,
                     'stock_inicial':   cant,
                     'stock_minimo':    0,
+                    'contrata':        contrata_val,
                     'updated_at':      now
                 })
 
@@ -1246,11 +1370,24 @@ def despacho_masivo():
             for i in range(0, len(ops_insert), 500):
                 supabase.table('stock_brigadas').insert(ops_insert[i:i+500]).execute()
 
-        msg = f"Se procesaron {procesados} registros con éxito."
-        if sin_nombre:
-            msg += f" ({len(sin_nombre)} código(s) no encontrados en catálogo, guardados como AX-código: {', '.join(sin_nombre[:5])}{'...' if len(sin_nombre) > 5 else ''})"
+        # ── Construir respuesta estructurada ────────────────────────────
+        sin_nombre_uniq    = list(dict.fromkeys(sin_nombre))
+        bri_inv_uniq       = list(dict.fromkeys(brigadas_invalidas))
+        disc_cont_uniq     = list(dict.fromkeys(discrepancias_cont))
 
-        return jsonify({'ok': True, 'msg': msg})
+        # Calcular nuevos vs actualizados
+        nuevos      = len(ops_insert)
+        actualizados = procesados - nuevos
+
+        return jsonify({
+            'ok':          procesados > 0,
+            'procesados':  procesados,
+            'nuevos':      nuevos,
+            'actualizados': actualizados,
+            'rechazadas':  bri_inv_uniq,          # brigadas no halladas en BD
+            'sin_catalogo': sin_nombre_uniq,      # códigos AX sin nombre en catálogo
+            'discrepancias': disc_cont_uniq,      # contrata Excel ≠ BD
+        })
     except Exception as e:
         print(f"Error Masivo: {e}")
         return jsonify({'error': str(e)}), 500

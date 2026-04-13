@@ -103,6 +103,13 @@
             <button onclick="openImportModal()" class="flex items-center gap-2 px-4 py-2 bg-emerald-700/60 hover:bg-emerald-600/70 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl transition">
                 <i class="fa-solid fa-file-import"></i> Importar Excel
             </button>
+
+            {% if role == 'admin' %}
+            <!-- Backfill contratas -->
+            <button id="btnBackfill" onclick="repararContratas()" class="flex items-center gap-2 px-4 py-2 bg-violet-800/50 hover:bg-violet-700/60 border border-violet-500/30 text-violet-300 font-bold text-xs rounded-xl transition" title="Rellena la columna contrata en registros que la tengan vacía">
+                <i class="fa-solid fa-rotate"></i> Reparar Contratas
+            </button>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -251,12 +258,12 @@
 {#  MODAL: IMPORTAR EXCEL                             #}
 {# ═══════════════════════════════════════════════════ #}
 <div id="modalImport" class="fixed inset-0 bg-black/70 backdrop-blur-md hidden items-center justify-center z-50">
-    <div class="glass w-[92%] max-w-lg" style="border-radius:20px;">
-        <div class="border-b border-white/5 px-6 py-4 flex justify-between items-center" style="background:rgba(10,17,35,0.5); border-radius:20px 20px 0 0;">
+    <div class="glass w-[96%] max-w-2xl" style="border-radius:20px; max-height:90vh; display:flex; flex-direction:column;">
+        <div class="border-b border-white/5 px-6 py-4 flex justify-between items-center shrink-0" style="background:rgba(10,17,35,0.5); border-radius:20px 20px 0 0;">
             <h3 class="text-white font-black text-base brand-font"><i class="fa-solid fa-file-import text-emerald-400 mr-2"></i>Importar Matriz de Despacho</h3>
             <button onclick="closeImportModal()" class="text-slate-500 hover:text-white transition text-xl"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <div class="p-6">
+        <div class="p-6 overflow-y-auto cscroll">
             <div class="dropzone group relative mb-4 p-8 text-center cursor-pointer" id="dropzone" onclick="document.getElementById('fileInput').click()">
                 <input type="file" id="fileInput" accept=".xlsx,.xls" class="hidden" onchange="handleFile(this.files[0])">
                 <div class="relative z-10 pointer-events-none">
@@ -269,7 +276,10 @@
                     <span class="text-blue-300 text-xs font-black uppercase tracking-widest">Procesando...</span>
                 </div>
             </div>
-            <div id="importResult" class="hidden mb-4 p-3 rounded-xl text-xs font-semibold"></div>
+
+            <!-- Reporte de carga -->
+            <div id="importReport" class="hidden mb-4"></div>
+
             <div class="flex items-center justify-between">
                 <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
                     <input type="checkbox" id="modoReemplazo" class="accent-indigo-500">
@@ -661,30 +671,136 @@
 
     async function handleFile(file) {
         if(!file) return;
-        const ui = document.getElementById('uploading-ui');
-        const res= document.getElementById('importResult');
+        const ui  = document.getElementById('uploading-ui');
+        const rep = document.getElementById('importReport');
         ui.classList.remove('hidden'); ui.style.display='flex';
-        res.classList.add('hidden');
+        rep.classList.add('hidden'); rep.innerHTML = '';
         const form = new FormData();
         form.append('file', file);
         form.append('modo', document.getElementById('modoReemplazo').checked ? 'reemplazar' : 'acumular');
         try {
             const r = await fetch('/api/despacho-masivo', { method:'POST', body:form });
             const d = await r.json();
-            res.classList.remove('hidden');
-            if(d.ok) {
-                res.className = 'mb-4 p-3 rounded-xl text-xs font-semibold bg-emerald-900/30 border border-emerald-500/30 text-emerald-300';
-                res.innerHTML = '<i class="fa-solid fa-check-circle mr-1"></i>' + d.msg;
-                loadData();
-            } else {
-                res.className = 'mb-4 p-3 rounded-xl text-xs font-semibold bg-red-900/30 border border-red-500/30 text-red-400';
-                res.innerHTML = '<i class="fa-solid fa-circle-xmark mr-1"></i>' + d.error;
+            rep.classList.remove('hidden');
+
+            if(d.error) {
+                rep.innerHTML = renderReportError(d.error);
+                return;
             }
+            rep.innerHTML = renderReport(d);
+            if(d.ok) loadData();
         } catch(e) {
-            res.classList.remove('hidden');
-            res.className = 'mb-4 p-3 rounded-xl text-xs font-semibold bg-red-900/30 border border-red-500/30 text-red-400';
-            res.innerHTML = '<i class="fa-solid fa-circle-xmark mr-1"></i>Error de conexión.';
+            rep.classList.remove('hidden');
+            rep.innerHTML = renderReportError('Error de conexión con el servidor.');
         } finally { ui.style.display='none'; ui.classList.add('hidden'); }
+    }
+
+    function renderReportError(msg) {
+        return `<div class="p-3 rounded-xl bg-red-900/30 border border-red-500/30 text-red-400 text-xs font-semibold">
+            <i class="fa-solid fa-circle-xmark mr-1"></i>${msg}
+        </div>`;
+    }
+
+    function renderReport(d) {
+        const total    = d.procesados || 0;
+        const nuevos   = d.nuevos     || 0;
+        const actualizados = d.actualizados || 0;
+        const rechazadas   = d.rechazadas   || [];
+        const sinCat       = d.sin_catalogo  || [];
+        const discrepancias= d.discrepancias || [];
+        const hayProblemas = rechazadas.length || sinCat.length || discrepancias.length;
+
+        // ── KPI strip ───────────────────────────────────────────────
+        const kpiBg = total > 0 ? 'bg-emerald-900/30 border-emerald-500/30' : 'bg-red-900/30 border-red-500/30';
+        const kpiIcon= total > 0 ? 'fa-check-circle text-emerald-400' : 'fa-circle-xmark text-red-400';
+        let html = `
+        <div class="p-3 rounded-xl border ${kpiBg} mb-3">
+            <div class="flex items-center gap-2 mb-2">
+                <i class="fa-solid ${kpiIcon} text-sm"></i>
+                <span class="text-xs font-black text-white">Resultado de la carga</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+                <div class="text-center bg-white/5 rounded-lg py-2">
+                    <div class="text-lg font-black text-white brand-font">${total}</div>
+                    <div class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Procesados</div>
+                </div>
+                <div class="text-center bg-white/5 rounded-lg py-2">
+                    <div class="text-lg font-black text-blue-300 brand-font">${nuevos}</div>
+                    <div class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Nuevos</div>
+                </div>
+                <div class="text-center bg-white/5 rounded-lg py-2">
+                    <div class="text-lg font-black text-indigo-300 brand-font">${actualizados}</div>
+                    <div class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Actualizados</div>
+                </div>
+            </div>
+        </div>`;
+
+        if(!hayProblemas) {
+            html += `<div class="text-center text-[10px] text-slate-500"><i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i>Sin advertencias — todos los registros son válidos.</div>`;
+            return html;
+        }
+
+        html += `<div class="space-y-2">`;
+
+        // ── Brigadas rechazadas ──────────────────────────────────────
+        if(rechazadas.length) {
+            html += `
+            <details class="group" open>
+                <summary class="flex items-center justify-between px-3 py-2 rounded-xl bg-red-900/25 border border-red-500/25 cursor-pointer select-none">
+                    <span class="text-xs font-black text-red-400">
+                        <i class="fa-solid fa-ban mr-1"></i>Brigadas RECHAZADAS — no existen en la BD
+                    </span>
+                    <span class="text-[10px] bg-red-500/20 text-red-300 font-bold px-2 py-0.5 rounded-full">${rechazadas.length}</span>
+                </summary>
+                <div class="mt-1 px-3 py-2 bg-red-950/30 rounded-xl border border-red-500/15">
+                    <p class="text-[9px] text-red-300/70 mb-2">Estas brigadas no están registradas en brigada_tabla y sus filas fueron omitidas. Verifica el nombre exacto.</p>
+                    <div class="grid grid-cols-2 gap-1">
+                        ${rechazadas.map(b => `<div class="font-mono text-[10px] bg-red-900/30 border border-red-500/15 rounded px-2 py-1 text-red-200 truncate" title="${b}">${b}</div>`).join('')}
+                    </div>
+                </div>
+            </details>`;
+        }
+
+        // ── Códigos sin catálogo ─────────────────────────────────────
+        if(sinCat.length) {
+            html += `
+            <details class="group">
+                <summary class="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-900/20 border border-amber-500/20 cursor-pointer select-none">
+                    <span class="text-xs font-black text-amber-400">
+                        <i class="fa-solid fa-tag-slash mr-1" style="font-style:normal;">⚠</i> Códigos AX sin nombre en catálogo
+                    </span>
+                    <span class="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full">${sinCat.length}</span>
+                </summary>
+                <div class="mt-1 px-3 py-2 bg-amber-950/20 rounded-xl border border-amber-500/15">
+                    <p class="text-[9px] text-amber-300/70 mb-2">Guardados temporalmente como <span class="font-mono">AX-código</span>. Verifica que el código AX sea correcto o agrégalo al catálogo.</p>
+                    <div class="grid grid-cols-3 gap-1">
+                        ${sinCat.map(c => `<div class="font-mono text-[10px] bg-amber-900/20 border border-amber-500/15 rounded px-2 py-1 text-amber-200">${c}</div>`).join('')}
+                    </div>
+                </div>
+            </details>`;
+        }
+
+        // ── Discrepancias de contrata ────────────────────────────────
+        if(discrepancias.length) {
+            html += `
+            <details class="group">
+                <summary class="flex items-center justify-between px-3 py-2 rounded-xl bg-violet-900/20 border border-violet-500/20 cursor-pointer select-none">
+                    <span class="text-xs font-black text-violet-400">
+                        <i class="fa-solid fa-arrows-rotate mr-1"></i>Contratas corregidas automáticamente
+                    </span>
+                    <span class="text-[10px] bg-violet-500/20 text-violet-300 font-bold px-2 py-0.5 rounded-full">${discrepancias.length}</span>
+                </summary>
+                <div class="mt-1 px-3 py-2 bg-violet-950/20 rounded-xl border border-violet-500/15">
+                    <p class="text-[9px] text-violet-300/70 mb-2">La contrata del Excel difería de la registrada en la BD. Se usó el valor oficial de brigada_tabla.</p>
+                    <div class="space-y-1">
+                        ${discrepancias.map(dc => `<div class="font-mono text-[10px] bg-violet-900/20 border border-violet-500/15 rounded px-2 py-1 text-violet-200">${dc}</div>`).join('')}
+                    </div>
+                </div>
+            </details>`;
+        }
+
+        html += `</div>`;
+        return html;
     }
 
     /* ══════════════════════════════════════
@@ -801,6 +917,38 @@
             if(d.ok) loadData();
             else alert('❌ ' + d.error);
         } catch(e) { alert('❌ Error de red.'); }
+    }
+
+    /* ══════════════════════════════════════
+       BACKFILL CONTRATAS (ADMIN)
+    ══════════════════════════════════════ */
+    async function repararContratas() {
+        const btn = document.getElementById('btnBackfill');
+        if(!btn) return;
+        if(!confirm('🔄 Reparar Contratas\n\nEsto llenará la contrata de todos los registros de stock que la tengan vacía, usando los datos oficiales de brigada_tabla.\n\nSolo afecta registros sin contrata. ¿Continuar?')) return;
+
+        const original = btn.innerHTML;
+        btn.innerHTML  = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Reparando...';
+        btn.disabled   = true;
+
+        try {
+            const r = await fetch('/api/backfill-contratas', { method:'POST' });
+            const d = await r.json();
+
+            if(d.ok) {
+                let msg = d.msg;
+                if(d.warning) msg += '\n\n' + d.warning;
+                alert('✅ ' + msg);
+                loadData();
+            } else {
+                alert('❌ ' + (d.error || 'Error al reparar.'));
+            }
+        } catch(e) {
+            alert('❌ Error de conexión al reparar contratas.');
+        } finally {
+            btn.innerHTML = original;
+            btn.disabled  = false;
+        }
     }
 
     /* ── Global Escape handler ── */

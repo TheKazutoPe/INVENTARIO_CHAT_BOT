@@ -380,14 +380,27 @@
                 const ptc = i.stock_inicial > 0 ? (i.stock_actual / i.stock_inicial) * 100 : 100;
                 return ptc <= 20;
             });
-            list.innerHTML = items.slice(0, 10).map(i => {
+            list.innerHTML = items.map(i => {
                 const actual = parseFloat(i.stock_actual);
                 const inicial = parseFloat(i.stock_inicial || 0);
                 const ptc = inicial > 0 ? Math.min((actual / inicial) * 100, 100) : (actual <= 0 ? 0 : 100);
-                let bar = 'bg-emerald-500', txt = 'text-emerald-600';
-                if(ptc <= 20) { bar = 'bg-red-500'; txt = 'text-red-600'; }
-                else if(ptc <= 40) { bar = 'bg-amber-400'; txt = 'text-amber-600'; }
-                return `<div class="bg-white border border-slate-100 rounded-xl px-4 py-2.5 flex items-center justify-between shadow-sm">
+                let bar = 'bg-emerald-500', txt = 'text-emerald-600', ring = 'hover:border-emerald-300';
+                if(ptc <= 20) { bar = 'bg-red-500'; txt = 'text-red-600'; ring = 'hover:border-red-300'; }
+                else if(ptc <= 40) { bar = 'bg-amber-400'; txt = 'text-amber-600'; ring = 'hover:border-amber-300'; }
+                const agotado = actual <= 0;
+                // Convertir item de stock al formato de item de catálogo para openModal
+                const itemObj = {
+                    codigo: i.cod_material,
+                    codigo_visual: (i.cod_material || '').replace(/^0+/, ''),
+                    descripcion: i.nombre_material,
+                    costo: 0,
+                    categoria: 'STOCK',
+                    subcategoria: '',
+                    origen: 'CICSA'
+                };
+                const json = encodeURIComponent(JSON.stringify(itemObj));
+                return `<div onclick="${agotado ? 'alert(\'⛔ Este material está agotado en tu stock.\')' : 'openModal(\'' + json + '\')'}"
+                    class="bg-white border ${agotado ? 'border-red-200 opacity-60 cursor-not-allowed' : 'border-slate-100 cursor-pointer active:scale-95 ' + ring} rounded-xl px-4 py-2.5 flex items-center justify-between shadow-sm transition-all">
                     <div class="flex-1 pr-4">
                         <div class="text-xs font-bold text-slate-700 truncate">${i.nombre_material}</div>
                         <div class="flex items-center gap-2 mt-1">
@@ -395,7 +408,10 @@
                             <span class="text-[10px] font-bold ${txt}">${ptc.toFixed(0)}%</span>
                         </div>
                     </div>
-                    <span class="font-black text-slate-800 text-lg">${actual.toLocaleString('es-PE',{maximumFractionDigits:1})}<span class="text-xs text-slate-400 font-normal ml-0.5">u</span></span>
+                    <div class="text-right shrink-0">
+                        <span class="font-black text-slate-800 text-lg">${actual.toLocaleString('es-PE',{maximumFractionDigits:1})}<span class="text-xs text-slate-400 font-normal ml-0.5">u</span></span>
+                        ${!agotado ? '<div class="text-[9px] text-blue-500 font-bold mt-0.5"><i class="fa-solid fa-hand-pointer mr-0.5"></i>toca para usar</div>' : '<div class="text-[9px] text-red-400 font-bold mt-0.5">AGOTADO</div>'}
+                    </div>
                 </div>`;
             }).join('');
             if(criticos.length) {
@@ -407,33 +423,118 @@
 
         // Búsqueda
         const searchInput = document.getElementById('search');
-        const resultsDiv = document.getElementById('results');
-        const spinner = document.getElementById('spinner');
+        const resultsDiv  = document.getElementById('results');
+        const spinner     = document.getElementById('spinner');
+
+        function getBrigadaStock() {
+            const bri = brigadaSelect.value;
+            return bri ? (stockData[bri] || []) : [];
+        }
+        function brigadaTieneStock() {
+            return getBrigadaStock().length > 0;
+        }
 
         searchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimer);
-            const q = e.target.value.trim();
-            if(q.length < 2) { 
+            const q = e.target.value.trim().toUpperCase();
+            if(q.length < 2) {
                 resultsDiv.innerHTML = `
                 <div class="text-center py-12 px-4 opacity-50">
                     <div class="w-16 h-16 mx-auto bg-slate-200 rounded-full flex items-center justify-center mb-4 text-slate-400 text-2xl"><i class="fa-regular fa-keyboard"></i></div>
                     <h3 class="font-bold text-slate-500">¿Qué repuesto usaste?</h3>
-                    <p class="text-xs text-slate-400 mt-1">Digita al menos 2 letras o números.</p>
-                </div>`; 
-                return; 
+                    <p class="text-xs text-slate-400 mt-1">${brigadaTieneStock() ? 'Busca en el stock asignado a tu brigada.' : 'Digita al menos 2 letras o números.'}</p>
+                </div>`;
+                return;
             }
+
+            // ── Modo stock restringido ──────────────────────────────────
+            // Si la brigada tiene stock asignado, buscar SOLO en ese stock.
+            if(brigadaTieneStock()) {
+                const items = getBrigadaStock();
+                const matches = items.filter(i =>
+                    (i.nombre_material || '').toUpperCase().includes(q) ||
+                    (i.cod_material || '').toUpperCase().includes(q)
+                );
+                renderStockResults(matches);
+                return;
+            }
+
+            // ── Fallback: buscar en catálogo completo (brigada sin stock) ──
             spinner.classList.remove('hidden');
             searchTimer = setTimeout(async () => {
                 try {
-                    const res = await fetch(`/api/search?q=${q}`);
+                    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
                     const data = await res.json();
-                    renderResults(data);
+                    renderCatalogResults(data);
                 } catch(err) { console.error(err); }
                 spinner.classList.add('hidden');
-            }, 300); // UI un poco más rápida
+            }, 300);
         });
 
-        function renderResults(data) {
+        // Renderiza resultados filtrados del STOCK de brigada
+        function renderStockResults(items) {
+            if(!items.length) {
+                resultsDiv.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="text-4xl mb-3">👻</div>
+                    <div class="font-bold text-slate-700">No encontramos ese material en tu stock</div>
+                    <div class="text-xs text-slate-400 mt-1">Solo puedes registrar materiales de tu inventario asignado.</div>
+                </div>`;
+                return;
+            }
+            let html = `<div class="mb-3 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-[10px] font-bold text-indigo-600 flex items-center gap-2">
+                <i class="fa-solid fa-lock"></i> Mostrando solo materiales de tu stock asignado
+            </div>`;
+            items.forEach((i, index) => {
+                const actual  = parseFloat(i.stock_actual);
+                const inicial = parseFloat(i.stock_inicial || 0);
+                const ptc     = inicial > 0 ? Math.min((actual / inicial) * 100, 100) : (actual <= 0 ? 0 : 100);
+                const agotado = actual <= 0;
+                let barColor = 'bg-emerald-500', txtColor = 'text-emerald-600';
+                if(ptc <= 20) { barColor = 'bg-red-500'; txtColor = 'text-red-600'; }
+                else if(ptc <= 40) { barColor = 'bg-amber-400'; txtColor = 'text-amber-600'; }
+
+                const itemObj = {
+                    codigo: i.cod_material,
+                    codigo_visual: (i.cod_material || '').replace(/^0+/, ''),
+                    descripcion: i.nombre_material,
+                    costo: 0,
+                    categoria: 'STOCK',
+                    subcategoria: '',
+                    origen: 'CICSA'
+                };
+                const json = encodeURIComponent(JSON.stringify(itemObj));
+                const delay = index * 40;
+
+                html += `
+                <div onclick="${agotado ? 'alert(\'⛔ Este material está agotado en tu stock.\')' : 'openModal(\'' + json + '\')'}"
+                    class="card-material p-4 mb-3 border-l-4 ${agotado ? 'border-l-slate-200 opacity-60 cursor-not-allowed' : 'border-l-indigo-500 cursor-pointer hover:bg-slate-50'} relative overflow-hidden group"
+                    style="animation: popIn 0.3s cubic-bezier(0.34,1.56,0.64,1) ${delay}ms both;">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2 flex-wrap">
+                                <span class="text-[9px] font-black tracking-widest px-2 py-1 rounded-lg bg-indigo-100 text-indigo-600">STOCK</span>
+                                <span class="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">AX: ${(i.cod_material||'').replace(/^0+/,'')}</span>
+                                ${agotado ? '<span class="text-[9px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600">AGOTADO</span>' : ''}
+                            </div>
+                            <div class="font-black brand-font text-sm text-slate-800 leading-tight">${i.nombre_material}</div>
+                            <div class="flex items-center gap-3 mt-2">
+                                <div class="h-1.5 w-28 bg-slate-100 rounded-full overflow-hidden"><div class="h-full ${barColor} rounded-full" style="width:${ptc}%"></div></div>
+                                <span class="text-[10px] font-bold ${txtColor}">${ptc.toFixed(0)}%</span>
+                                <span class="text-[10px] font-black text-slate-600">${actual.toLocaleString('es-PE',{maximumFractionDigits:1})} u disponibles</span>
+                            </div>
+                        </div>
+                        <div class="w-10 h-10 rounded-full ${agotado ? 'bg-slate-100 text-slate-300' : 'bg-slate-50 group-hover:bg-indigo-500 group-hover:text-white'} flex items-center justify-center transition-colors shrink-0 shadow-sm ml-3">
+                            <i class="fa-solid fa-plus text-xl"></i>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            resultsDiv.innerHTML = html;
+        }
+
+        // Renderiza resultados del catálogo completo (fallback cuando no hay stock)
+        function renderCatalogResults(data) {
             if(data.length === 0) {
                 resultsDiv.innerHTML = `
                 <div class="text-center py-8">
@@ -442,25 +543,20 @@
                 </div>`;
                 return;
             }
-            // Enriquecer resultados con info de stock de la brigada seleccionada
             const bri = brigadaSelect.value;
             const briStock = stockData[bri] || [];
             const stockMap = {};
             briStock.forEach(s => { stockMap[s.cod_material] = s; });
             let html = '';
             data.forEach((item, index) => {
-                const json = encodeURIComponent(JSON.stringify(item));
-                const origen = (item.origen || 'CLARO').toUpperCase();
+                const json    = encodeURIComponent(JSON.stringify(item));
+                const origen  = (item.origen || 'CLARO').toUpperCase();
                 const isCicsa = origen.includes('CICSA');
-
                 let badge = isCicsa
                     ? '<span class="text-[9px] font-black tracking-widest px-2 py-1 flex items-center justify-center rounded-lg bg-blue-100 text-blue-600">CICSA</span>'
                     : '<span class="text-[9px] font-black tracking-widest px-2 py-1 flex items-center justify-center rounded-lg bg-red-100 text-red-600">CLARO</span>';
-
                 let displayCode = item.codigo_visual || 'S/C';
                 const delay = index * 50;
-
-                // Stock disponible para este material en la brigada activa
                 const stockItem = stockMap[item.codigo];
                 let stockTag = '';
                 if(stockItem) {
@@ -474,16 +570,12 @@
                 } else if(bri) {
                     stockTag = `<span class="text-[9px] font-semibold text-slate-400 px-2 py-0.5 rounded-full bg-slate-100">Sin stock previo registrado</span>`;
                 }
-
                 html += `
                 <div onclick="openModal('${json}')" class="card-material p-4 mb-3 border-l-4 ${isCicsa ? 'border-l-blue-500' : 'border-l-red-500'} cursor-pointer hover:bg-slate-50 relative overflow-hidden group" style="animation: popIn 0.3s cubic-bezier(0.34,1.56,0.64,1) ${delay}ms both;">
                     <div class="absolute -right-4 -top-8 text-[80px] opacity-5 text-slate-900 group-hover:scale-110 transition-transform"><i class="fa-solid fa-box"></i></div>
                     <div class="flex items-start justify-between relative z-10">
                         <div class="w-10/12">
-                            <div class="flex items-center gap-2 mb-2 flex-wrap">
-                                ${badge}
-                                <span class="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">AX: ${displayCode.replace(/^0+/, '')}</span>
-                            </div>
+                            <div class="flex items-center gap-2 mb-2 flex-wrap">${badge}<span class="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">AX: ${displayCode.replace(/^0+/, '')}</span></div>
                             <div class="font-black brand-font text-sm text-slate-800 leading-tight">${item.descripcion}</div>
                             <div class="text-[10px] text-slate-400 font-semibold mt-1.5 uppercase tracking-wide">${item.categoria || ''} ${item.subcategoria ? ' · ' + item.subcategoria : ''}</div>
                             ${stockTag ? `<div class="mt-2">${stockTag}</div>` : ''}
@@ -496,6 +588,9 @@
             });
             resultsDiv.innerHTML = html;
         }
+
+        // Alias para compatibilidad con código existente
+        function renderResults(data) { renderCatalogResults(data); }
 
         // Lógica modal Bottom Sheet
         const overlay = document.getElementById('overlay');

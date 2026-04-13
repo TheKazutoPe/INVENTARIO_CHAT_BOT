@@ -30,39 +30,41 @@
             </h1>
             <p class="text-slate-500 text-sm mt-1.5 ml-1">Supervisión de cumplimiento de registro de materiales por bitácora</p>
         </div>
-        <div class="grid grid-cols-2 lg:grid-cols-6 gap-3 mt-4 lg:mt-0 items-end w-full lg:w-auto">
+        <!-- ── FILTROS ── -->
+        <div class="flex flex-wrap items-end gap-3 mt-4 lg:mt-0">
+
             <!-- Zona -->
             <div class="flex flex-col gap-1 hidden lg:flex">
                 <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Zona</label>
-                <select id="filterZona" onchange="cargar()" class="filter-input w-full">
+                <select id="filterZona" onchange="cargar()" class="filter-input" style="height:34px; min-width:110px;">
                     <option value="">Todas</option>
                     {% for z in zonas %}
                     <option value="{{ z }}">{{ z }}</option>
                     {% endfor %}
                 </select>
             </div>
-            
+
             <!-- Fechas -->
-            <div class="flex flex-col gap-1 col-span-2 lg:col-span-1 min-w-[200px]">
+            <div class="flex flex-col gap-1">
                 <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Fechas</label>
-                <div class="flex items-center gap-1 bg-[rgba(15,23,42,0.8)] border border-[rgba(255,255,255,0.08)] rounded-lg p-0.5" id="dateFilterMode">
-                    <select id="filterDateMode" onchange="toggleDateFilter()" class="filter-input border-none bg-transparent w-20 h-full py-1 text-xs focus:ring-0">
+                <div class="flex items-center gap-0 bg-[rgba(15,23,42,0.8)] border border-[rgba(255,255,255,0.08)] rounded-lg overflow-hidden" style="height:34px;" id="dateFilterMode">
+                    <select id="filterDateMode" onchange="toggleDateFilter()" class="filter-input border-none bg-transparent px-2 py-0 h-full text-xs focus:ring-0 shrink-0" style="width:70px;">
                         <option value="dias">Días</option>
                         <option value="rango">Fechas</option>
                     </select>
-                    
-                    <div id="diasDiv" class="flex items-center w-full">
-                        <select id="filterDias" onchange="cargar()" class="filter-input border-none bg-transparent w-full h-full py-1 text-xs focus:ring-0 text-amber-400 font-bold">
+                    <div class="w-px h-4 bg-white/10"></div>
+                    <div id="diasDiv" class="flex items-center h-full">
+                        <select id="filterDias" onchange="cargar()" class="filter-input border-none bg-transparent px-2 py-0 h-full text-xs font-bold text-amber-400 focus:ring-0" style="width:70px;">
                             <option value="3">3 días</option>
                             <option value="7" selected>7 días</option>
                             <option value="14">14 días</option>
                             <option value="30">1 mes</option>
                         </select>
                     </div>
-                    
-                    <div id="rangoDiv" class="hidden items-center gap-1 px-1 w-full justify-between">
-                        <input type="date" id="startDate" class="filter-input border-none bg-transparent py-1 text-xs w-[100px]" style="color-scheme: dark;">
-                        <input type="date" id="endDate" class="filter-input border-none bg-transparent py-1 text-xs w-[100px]" style="color-scheme: dark;">
+                    <div id="rangoDiv" class="hidden items-center gap-1 px-2 h-full">
+                        <input type="date" id="startDate" onchange="cargar()" class="filter-input border-none bg-transparent py-0 text-xs h-full" style="width:110px; color-scheme: dark;">
+                        <span class="text-slate-600 text-xs">→</span>
+                        <input type="date" id="endDate"   onchange="cargar()" class="filter-input border-none bg-transparent py-0 text-xs h-full" style="width:110px; color-scheme: dark;">
                     </div>
                 </div>
             </div>
@@ -70,7 +72,7 @@
             <!-- Contrata -->
             <div class="flex flex-col gap-1">
                 <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Contrata</label>
-                <select id="filterContrata" onchange="renderBitacoras()" class="filter-input w-full text-xs">
+                <select id="filterContrata" onchange="renderBitacoras()" class="filter-input" style="height:34px; min-width:120px;">
                     <option value="all">Todas</option>
                 </select>
             </div>
@@ -78,7 +80,7 @@
             <!-- Brigada -->
             <div class="flex flex-col gap-1">
                 <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Brigada</label>
-                <select id="filterBrigada" onchange="renderBitacoras()" class="filter-input w-full text-xs">
+                <select id="filterBrigada" onchange="renderBitacoras()" class="filter-input" style="height:34px; min-width:120px;">
                     <option value="all">Todas</option>
                 </select>
             </div>
@@ -86,16 +88,21 @@
             <!-- Ver -->
             <div class="flex flex-col gap-1">
                 <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Ver</label>
-                <select id="filterStatus" onchange="renderBitacoras()" class="filter-input w-full text-xs">
+                <select id="filterStatus" onchange="renderBitacoras()" class="filter-input" style="height:34px; min-width:100px;">
                     <option value="all">Todas</option>
                     <option value="pendiente">Sin Mat.</option>
                     <option value="ok">Con Mat.</option>
                 </select>
             </div>
-            
-            <button onclick="cargar()" class="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition h-[34px] w-full" title="Actualizar Datos">
-                <i class="fa-solid fa-arrows-rotate"></i> 
-            </button>
+
+            <!-- Botón actualizar -->
+            <div class="flex flex-col gap-1">
+                <label class="text-[10px] text-transparent font-bold uppercase tracking-widest select-none">·</label>
+                <button onclick="cargar()" class="flex items-center justify-center gap-2 px-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition" style="height:34px; min-width:40px;" title="Actualizar Datos">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+            </div>
+
         </div>
     </div>
 

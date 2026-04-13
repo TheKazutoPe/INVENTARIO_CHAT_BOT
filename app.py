@@ -283,12 +283,20 @@ def materiales_view(bitacora_id):
             except:
                 pass
 
+        # Detectar si ya existe una marca de sin consumo
+        historial_visible = [h for h in historial if h.get('cod_material') != 'SIN_CONSUMO']
+        sc_record = next((h for h in historial if h.get('cod_material') == 'SIN_CONSUMO'), None)
+        ya_sin_consumo = bool(sc_record)
+        id_sin_consumo = sc_record['id'] if sc_record else None
+
         return render_template('materiales_form.html',
                                bid=bitacora_id,
                                b=bitacora,
                                brigadas=brigadas,
-                               historial=historial,
-                               stock_brigadas=stock_brigadas)
+                               historial=historial_visible,
+                               stock_brigadas=stock_brigadas,
+                               ya_sin_consumo=ya_sin_consumo,
+                               id_sin_consumo=id_sin_consumo)
     except Exception as e:
         print(e)
         return f"Error servidor: {e}", 500
@@ -910,6 +918,38 @@ def marcar_sin_consumo():
         return jsonify({'ok': True, 'msg': 'Bitácora marcada como sin consumo de materiales.'})
     except Exception as e:
         print(f"Error sin-consumo: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/deshacer-sin-consumo', methods=['POST'])
+def deshacer_sin_consumo():
+    """
+    Deshace la marca 'sin consumo' eliminando el registro SIN_CONSUMO
+    de materiales_acumulado para que la bitácora vuelva a aparecer
+    como pendiente en el monitor.
+    """
+    d = request.json or {}
+    try:
+        record_id = d.get('id')
+        bid       = str(d.get('bid', '')).strip()
+        bri       = str(d.get('bri', '')).strip().upper()
+
+        if record_id:
+            # Borrar por id específico
+            supabase.table(Config.ACUMULADO_TABLE).delete().eq('id', int(record_id)).execute()
+        elif bid and bri:
+            # Fallback: buscar por bitacora_id + brigada + cod_material
+            supabase.table(Config.ACUMULADO_TABLE).delete() \
+                .eq('bitacora_id', bid) \
+                .eq('brigada_responsable', bri) \
+                .eq('cod_material', 'SIN_CONSUMO') \
+                .execute()
+        else:
+            return jsonify({'error': 'Se requiere id o (bid + bri)'}), 400
+
+        return jsonify({'ok': True, 'msg': 'Marca sin consumo eliminada. La bitácora vuelve a estado pendiente.'})
+    except Exception as e:
+        print(f"Error deshacer-sin-consumo: {e}")
         return jsonify({'error': str(e)}), 500
 
 

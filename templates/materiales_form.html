@@ -369,6 +369,20 @@
         let currentItem = null, searchTimer;
         let sessionCount = 0;
 
+        // Estado inicial desde servidor
+        const YA_SIN_CONSUMO = {{ 'true' if ya_sin_consumo else 'false' }};
+        const ID_SIN_CONSUMO = {{ id_sin_consumo if id_sin_consumo else 'null' }};
+
+        // Si ya estaba marcado como sin consumo, mostrar el botón en estado "deshacible"
+        window.addEventListener('DOMContentLoaded', () => {
+            if(YA_SIN_CONSUMO) {
+                const bar = document.getElementById('btn-sin-consumo-bar');
+                const btn = document.getElementById('btn-sin-consumo');
+                bar.classList.remove('hidden');
+                activarEstadoSinConsumo(btn);
+            }
+        });
+
         function updateSessionBar() {
             const bar = document.getElementById('session-bar');
             if(sessionCount > 0) {
@@ -797,6 +811,62 @@
             updateSessionBar();
         }
 
+        function activarEstadoSinConsumo(btn) {
+            btn.innerHTML = `
+                <span class="flex items-center gap-2">
+                    <i class="fa-solid fa-circle-check text-emerald-500"></i>
+                    <span>Marcado: sin consumo</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-black ml-2 border border-amber-300">Deshacer</span>
+                </span>`;
+            btn.className = 'w-full bg-emerald-50 border-2 border-emerald-300 text-emerald-700 font-black brand-font text-sm py-3.5 rounded-2xl shadow-lg flex items-center justify-center gap-2 btn-haptic transition-all';
+            btn.onclick = deshacerSinConsumo;
+            btn.disabled = false;
+        }
+
+        async function deshacerSinConsumo() {
+            if(!confirm('\u00bfDeseas deshacer la marca "Sin consumo"?\n\nLa bitácora volverá a aparecer como Pendiente en el monitor.')) return;
+
+            const btn = document.getElementById('btn-sin-consumo');
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Deshaciendo...';
+            btn.disabled = true;
+
+            const bri = brigadaSelect.value;
+            try {
+                const res = await fetch('/api/deshacer-sin-consumo', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ id: ID_SIN_CONSUMO, bid: bitacoraId, bri: bri })
+                });
+                const data = await res.json();
+                if(data.ok) {
+                    // Volver al estado original del botón
+                    btn.innerHTML = '<i class="fa-solid fa-ban text-amber-500"></i> No se consumieron materiales en esta visita';
+                    btn.className = 'w-full bg-white border-2 border-slate-300 text-slate-700 font-black brand-font text-sm py-3.5 rounded-2xl shadow-lg flex items-center justify-center gap-2 btn-haptic hover:border-amber-400 hover:text-amber-700 hover:bg-amber-50 transition-all';
+                    btn.onclick = marcarSinConsumo;
+                    btn.disabled = false;
+                    // Feedback
+                    resultsDiv.innerHTML = `
+                        <div class="text-center py-10 px-4">
+                            <div class="w-16 h-16 mx-auto bg-amber-100 rounded-full flex items-center justify-center mb-4 text-3xl">
+                                <i class="fa-solid fa-rotate-left text-amber-500"></i>
+                            </div>
+                            <h3 class="font-black brand-font text-slate-700 text-lg">Marca deshecha</h3>
+                            <p class="text-sm text-slate-500 mt-1">La bitácora vuelve a estado <strong>Pendiente</strong> en el monitor.</p>
+                            <p class="text-xs text-slate-400 mt-2">Puedes buscar materiales o volver a marcarla sin consumo.</p>
+                        </div>`;
+                } else {
+                    alert('Error: ' + (data.error || 'desconocido'));
+                    btn.innerHTML = orig;
+                    btn.disabled = false;
+                }
+            } catch(e) {
+                alert('Error de red al deshacer.');
+                btn.innerHTML = orig;
+                btn.disabled = false;
+            }
+        }
+
         async function marcarSinConsumo() {
             const bri = brigadaSelect.value;
             if(!bri) {
@@ -823,10 +893,8 @@
                 });
                 const data = await res.json();
                 if(data.ok) {
-                    btn.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-500"></i> Registrado: sin consumo';
-                    btn.className = btn.className.replace('border-slate-300 text-slate-700', 'border-emerald-400 text-emerald-700 bg-emerald-50');
-                    btn.onclick = null; // Deshabilitar
-                    // Feedback en el área de resultados
+                    // Activar estado deshacible (no deshabilitar el botón)
+                    activarEstadoSinConsumo(btn);
                     resultsDiv.innerHTML = `
                         <div class="text-center py-10 px-4">
                             <div class="w-16 h-16 mx-auto bg-emerald-100 rounded-full flex items-center justify-center mb-4 text-3xl">
@@ -834,7 +902,7 @@
                             </div>
                             <h3 class="font-black brand-font text-slate-700 text-lg">Visita marcada</h3>
                             <p class="text-sm text-slate-500 mt-1">Registrado como: <strong>Sin consumo de materiales</strong></p>
-                            <p class="text-xs text-slate-400 mt-2">El monitor la mostrará como completada.</p>
+                            <p class="text-xs text-slate-400 mt-2">¿Te equivocaste? Toca el botón verde de abajo para deshacer.</p>
                         </div>`;
                 } else {
                     alert('Error: ' + (data.error || 'sin respuesta'));

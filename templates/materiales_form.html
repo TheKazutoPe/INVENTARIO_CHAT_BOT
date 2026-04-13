@@ -302,7 +302,7 @@
         </div>
     </div>
 
-    <!-- BARRA FLOTANTE INFERIOR: resumen de sesión (sin costos) -->
+    <!-- BARRA FLOTANTE INFERIOR: resumen de sesión + Sin consumo -->
     <div id="session-bar" class="fixed bottom-0 left-0 right-0 z-40 px-5 pb-6 pt-3 bg-gradient-to-t from-slate-100 to-transparent pointer-events-none" style="display:none">
         <div class="max-w-md mx-auto pointer-events-auto">
             <div class="bg-slate-800 rounded-2xl px-5 py-4 flex items-center justify-between shadow-2xl shadow-slate-900/30">
@@ -314,6 +314,17 @@
                     <i class="fa-solid fa-boxes-stacked"></i>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Botón fijo SIN CONSUMO (siempre visible si hay brigada seleccionada) -->
+    <div id="btn-sin-consumo-bar" class="fixed bottom-0 left-0 right-0 z-39 px-5 pb-6 pt-3 bg-gradient-to-t from-slate-100/80 to-transparent pointer-events-none hidden">
+        <div class="max-w-md mx-auto pointer-events-auto">
+            <button id="btn-sin-consumo" onclick="marcarSinConsumo()"
+                class="w-full bg-white border-2 border-slate-300 text-slate-700 font-black brand-font text-sm py-3.5 rounded-2xl shadow-lg flex items-center justify-center gap-2 btn-haptic hover:border-amber-400 hover:text-amber-700 hover:bg-amber-50 transition-all">
+                <i class="fa-solid fa-ban text-amber-500"></i>
+                No se consumieron materiales en esta visita
+            </button>
         </div>
     </div>
 
@@ -377,6 +388,7 @@
         if(savedBri) {
             brigadaSelect.value = savedBri;
             mostrarStockBrigada(savedBri);
+            document.getElementById('btn-sin-consumo-bar').classList.remove('hidden');
         } else {
             // Si solo hay una brigada disponible, seleccionarla automáticamente
             const options = brigadaSelect.querySelectorAll('option[value]:not([value=""])');
@@ -384,6 +396,7 @@
                 brigadaSelect.value = options[0].value;
                 sessionStorage.setItem(`bri_${bitacoraId}`, options[0].value);
                 mostrarStockBrigada(options[0].value);
+                document.getElementById('btn-sin-consumo-bar').classList.remove('hidden');
             }
         }
         function persistBrigada() {
@@ -391,6 +404,10 @@
             sessionStorage.setItem(`bri_${bitacoraId}`, bri);
             brigadaSelect.parentElement.classList.remove('ring-4', 'ring-red-200');
             mostrarStockBrigada(bri);
+            // Mostrar botón sin consumo cuando hay brigada seleccionada
+            const bar = document.getElementById('btn-sin-consumo-bar');
+            if(bri) bar.classList.remove('hidden');
+            else bar.classList.add('hidden');
         }
 
         function mostrarStockBrigada(bri) {
@@ -778,6 +795,57 @@
             countElem.innerText = parseInt(countElem.innerText) + 1;
             sessionCount++;
             updateSessionBar();
+        }
+
+        async function marcarSinConsumo() {
+            const bri = brigadaSelect.value;
+            if(!bri) {
+                alert('⚠️ Primero selecciona tu brigada.');
+                return;
+            }
+            const histCount = parseInt(document.getElementById('history-count').innerText || 0);
+            if(histCount > 0) {
+                alert('⚠️ Ya tienes materiales registrados en esta visita. No puedes marcarla como sin consumo.');
+                return;
+            }
+            if(!confirm('¿Confirmas que NO se consumieron materiales en esta visita?\n\nEsto la marcará como completada en el monitor sin materiales.')) return;
+
+            const btn = document.getElementById('btn-sin-consumo');
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Registrando...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/sin-consumo', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ bid: bitacoraId, bri: bri })
+                });
+                const data = await res.json();
+                if(data.ok) {
+                    btn.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-500"></i> Registrado: sin consumo';
+                    btn.className = btn.className.replace('border-slate-300 text-slate-700', 'border-emerald-400 text-emerald-700 bg-emerald-50');
+                    btn.onclick = null; // Deshabilitar
+                    // Feedback en el área de resultados
+                    resultsDiv.innerHTML = `
+                        <div class="text-center py-10 px-4">
+                            <div class="w-16 h-16 mx-auto bg-emerald-100 rounded-full flex items-center justify-center mb-4 text-3xl">
+                                <i class="fa-solid fa-circle-check text-emerald-500"></i>
+                            </div>
+                            <h3 class="font-black brand-font text-slate-700 text-lg">Visita marcada</h3>
+                            <p class="text-sm text-slate-500 mt-1">Registrado como: <strong>Sin consumo de materiales</strong></p>
+                            <p class="text-xs text-slate-400 mt-2">El monitor la mostrará como completada.</p>
+                        </div>`;
+                } else {
+                    alert('Error: ' + (data.error || 'sin respuesta'));
+                    btn.innerHTML = orig;
+                    btn.disabled = false;
+                }
+            } catch(e) {
+                alert('Error de red al marcar sin consumo.');
+                btn.innerHTML = orig;
+                btn.disabled = false;
+            }
         }
     </script>
 

@@ -442,8 +442,9 @@ def brigadas_lista():
 @login_required
 def bitacoras_pendientes():
     """
-    Retorna bitácoras que no tienen ningún material registrado.
-    Útil para el coordinador de operaciones para monitorear cumplimiento.
+    Retorna bitácoras con su estado de registro de materiales.
+    tiene_material = True si hay consumo real registrado.
+    tiene_sin_consumo = True si la brigada marcó 'sin consumo' (no usó material).
     """
     try:
         zona = request.args.get('zona', '')
@@ -454,7 +455,7 @@ def bitacoras_pendientes():
         query = supabase.table('bitacoras') \
             .select('id, codigo_bd, nroincidencia_bd, nrotas_bd, nrosot_bd, zona_bd, bri1_oficial, contrata_cicsa, fecha_asignacion_bd, estado_textual_bd, titulo_bd') \
             .eq('is_cerrada', False)
-            
+
         if start_date:
             query = query.gte('fecha_asignacion_bd', f"{start_date}T00:00:00")
             if end_date:
@@ -470,20 +471,31 @@ def bitacoras_pendientes():
         res = query.limit(800).execute()
         bitacoras = res.data or []
 
-        # Obtener IDs con material registrado
         if bitacoras:
             bids = [str(b['id']) for b in bitacoras]
-            mat_res = supabase.table(Config.ACUMULADO_TABLE).select('bitacora_id').in_('bitacora_id', bids).execute()
-            ids_con_material = set(str(r['bitacora_id']) for r in (mat_res.data or []))
+            mat_res = supabase.table(Config.ACUMULADO_TABLE) \
+                .select('bitacora_id, cod_material') \
+                .in_('bitacora_id', bids).execute()
 
-            # Filtrar las que no tienen material
-            pendientes = []
+            # Separar ids con consumo real vs con marca sin_consumo
+            ids_con_material  = set()
+            ids_sin_consumo   = set()
+            for r in (mat_res.data or []):
+                bid = str(r['bitacora_id'])
+                if r.get('cod_material') == 'SIN_CONSUMO':
+                    ids_sin_consumo.add(bid)
+                else:
+                    ids_con_material.add(bid)
+
+            resultado = []
             for b in bitacoras:
-                b['tiene_material'] = str(b['id']) in ids_con_material
-                b['identificador'] = get_identifier(b)
-                pendientes.append(b)
+                bid = str(b['id'])
+                b['tiene_material']    = bid in ids_con_material
+                b['tiene_sin_consumo'] = bid in ids_sin_consumo
+                b['identificador']     = get_identifier(b)
+                resultado.append(b)
 
-            return jsonify(pendientes)
+            return jsonify(resultado)
 
         return jsonify([])
     except Exception as e:
@@ -831,6 +843,73 @@ def save_single():
 
         return jsonify({'ok': True, 'saved': saved_row})
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/sin-consumo', methods=['POST'])
+def marcar_sin_consumo():
+    """
+    Marca una bitácora como 'sin consumo de materiales'.
+    Inserta un registro especial en materiales_acumulado con cod_material='SIN_CONSUMO'.
+    Si ya existe uno, no duplica.
+    """
+    d = request.json or {}
+    try:
+        bid = str(d.get('bid', '')).strip()
+        bri = str(d.get('bri', '')).strip().upper()
+        if not bid or not bri:
+            return jsonify({'error': 'bid y bri son requeridos'}), 400
+
+        # Verificar que no exista ya un registro sin_consumo para esta bitacora+brigada
+        existing = supabase.table(Config.ACUMULADO_TABLE) \
+            .select('id') \
+            .eq('bitacora_id', bid) \
+            .eq('brigada_responsable', bri) \
+            .eq('cod_material', 'SIN_CONSUMO') \
+            .execute()
+        if existing.data:
+            return jsonify({'ok': True, 'msg': 'Ya estaba marcada como sin consumo.'})
+
+        # Obtener datos de la bitacora para completar el registro
+        b_res = supabase.table('bitacoras').select('*').eq('id', int(bid)).execute()
+        b = b_res.data[0] if b_res.data else {}
+        now = datetime.datetime.now()
+        identifier = get_identifier(b)
+
+        registro = {
+            'bitacora_id':          bid,
+            'brigada_responsable':  bri,
+            'fecha_guardado':       now.isoformat(),
+            'inc':                  identifier,
+            'fecha_asign_inc':      b.get('fecha_asignacion_bd'),
+            'sot':                  b.get('nrosot_bd'),
+            'red_afect':            b.get('red1_bd'),
+            'region':               b.get('zona_bd'),
+            'subregion':            b.get('departamento_bd'),
+            'base_cuadrilla':       b.get('base_bd'),
+            'sup_claro':            b.get('responsable_claro_bd'),
+            'sup_contrata':         b.get('responsable_cicsa_bd'),
+            'id_site_inicio':       b.get('nombresite_bd'),
+            'name_site_inicio':     b.get('nombresite_bd'),
+            'causa_averia':         b.get('causa_bd'),
+            'tipo_mmto':            b.get('tipoaveria_bd'),
+            'cod_material':         'SIN_CONSUMO',
+            'nombre_material':      'Sin consumo de materiales',
+            'origen_material':      'CICSA',
+            'cant_material':        0,
+            'precio_unit':          0,
+            'subtotal':             0,
+            'total_soles':          0,
+            'moneda':               'D',
+            'tc':                   3.75,
+            'trabajo_concluido':    b.get('estado_trabajo'),
+            'porcentaje_ejecucion': 0,
+            'validado_oym':         'SIN_CONSUMO',
+        }
+        supabase.table(Config.ACUMULADO_TABLE).insert([registro]).execute()
+        return jsonify({'ok': True, 'msg': 'Bitácora marcada como sin consumo de materiales.'})
+    except Exception as e:
+        print(f"Error sin-consumo: {e}")
         return jsonify({'error': str(e)}), 500
 
 

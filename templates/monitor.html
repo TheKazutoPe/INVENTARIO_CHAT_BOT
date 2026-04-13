@@ -88,9 +88,10 @@
             <!-- Ver -->
             <div class="flex flex-col gap-1">
                 <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Ver</label>
-                <select id="filterStatus" onchange="renderBitacoras()" class="filter-input" style="height:34px; min-width:100px;">
+                <select id="filterStatus" onchange="renderBitacoras()" class="filter-input" style="height:34px; min-width:110px;">
                     <option value="all">Todas</option>
                     <option value="pendiente">Sin Mat.</option>
+                    <option value="sin_consumo">Sin consumo</option>
                     <option value="ok">Con Mat.</option>
                 </select>
             </div>
@@ -258,22 +259,25 @@
         const q = document.getElementById('searchTable').value.toLowerCase();
 
         let data = allBitacoras;
-        if(statusFilter === 'pendiente') data = data.filter(b => !b.tiene_material);
-        if(statusFilter === 'ok') data = data.filter(b => b.tiene_material);
+        if(statusFilter === 'pendiente')   data = data.filter(b => !b.tiene_material && !b.tiene_sin_consumo);
+        if(statusFilter === 'ok')          data = data.filter(b => b.tiene_material);
+        if(statusFilter === 'sin_consumo') data = data.filter(b => b.tiene_sin_consumo && !b.tiene_material);
         if(contrataFilter !== 'all') data = data.filter(b => (b.contrata_cicsa || '').toUpperCase() === contrataFilter);
         if(brigadaFilter !== 'all') data = data.filter(b => (b.bri1_oficial || '').toUpperCase() === brigadaFilter);
         if(q.length >= 2) data = data.filter(b => JSON.stringify(b).toLowerCase().includes(q));
 
-        // Sort: sin material primero
+        // Sort: pendiente primero, luego sin_consumo, luego con material
         data.sort((a, b) => {
-            if(a.tiene_material !== b.tiene_material) return a.tiene_material ? 1 : -1;
-            return 0;
+            const priA = a.tiene_material ? 2 : (a.tiene_sin_consumo ? 1 : 0);
+            const priB = b.tiene_material ? 2 : (b.tiene_sin_consumo ? 1 : 0);
+            return priA - priB;
         });
 
-        const con  = allBitacoras.filter(b => b.tiene_material).length;
-        const sin  = allBitacoras.filter(b => !b.tiene_material).length;
+        const con   = allBitacoras.filter(b => b.tiene_material).length;
+        const sc    = allBitacoras.filter(b => b.tiene_sin_consumo && !b.tiene_material).length;
+        const sin   = allBitacoras.filter(b => !b.tiene_material && !b.tiene_sin_consumo).length;
         const total = allBitacoras.length;
-        const cumpl = total ? Math.round((con / total) * 100) : 0;
+        const cumpl = total ? Math.round(((con + sc) / total) * 100) : 0;
 
         document.getElementById('kpi-total').textContent = total;
         document.getElementById('kpi-con').textContent = con;
@@ -289,7 +293,9 @@
         data.forEach(b => {
             const statusBadge = b.tiene_material
                 ? `<span class="status-ok text-[9px] font-black px-2 py-1 rounded-lg flex items-center gap-1 w-fit"><i class="fa-solid fa-check text-[8px]"></i>Registrado</span>`
-                : `<span class="status-pend text-[9px] font-black px-2 py-1 rounded-lg flex items-center gap-1 w-fit animate-pulse"><i class="fa-solid fa-circle-exclamation text-[8px]"></i>Pendiente</span>`;
+                : b.tiene_sin_consumo
+                    ? `<span class="text-[9px] font-black px-2 py-1 rounded-lg flex items-center gap-1 w-fit" style="background:rgba(100,116,139,0.15);border:1px solid rgba(100,116,139,0.3);color:#94a3b8;"><i class="fa-solid fa-ban text-[8px]"></i>Sin consumo</span>`
+                    : `<span class="status-pend text-[9px] font-black px-2 py-1 rounded-lg flex items-center gap-1 w-fit animate-pulse"><i class="fa-solid fa-circle-exclamation text-[8px]"></i>Pendiente</span>`;
 
             const fecha = b.fecha_asignacion_bd
                 ? new Date(b.fecha_asignacion_bd).toLocaleDateString('es-PE', {day:'2-digit', month:'short'})

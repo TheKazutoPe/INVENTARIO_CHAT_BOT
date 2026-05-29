@@ -257,28 +257,39 @@ def materiales_view(bitacora_id):
         historial = historial_res.data if historial_res.data else []
 
         brigadas = []
-        # Recopilar brigadas: bri{i}_oficial tiene prioridad, fallback a bri{i}_bd
         INVALIDOS = {'', 'NONE', 'NULL', 'NAN', 'NO TIENE', '-', '—', '0', 'NINGUNO'}
-        raw_names = []
-        seen = set()
-        for i in range(1, 6):
-            name = (bitacora.get(f'bri{i}_oficial') or bitacora.get(f'bri{i}_bd') or '').strip()
-            if name and name.upper() not in INVALIDOS and name not in seen:
-                raw_names.append(name)
-                seen.add(name)
+        seen_vals = set()
+        bd_names_to_resolve = []  # solo los _bd que no tengan _oficial
 
-        if raw_names:
+        for i in range(1, 6):
+            oficial = (bitacora.get(f'bri{i}_oficial') or '').strip()
+            if oficial and oficial.upper() not in INVALIDOS:
+                if oficial not in seen_vals:
+                    brigadas.append({'val': oficial, 'lbl': oficial})
+                    seen_vals.add(oficial)
+            else:
+                # Sin nombre oficial → intentar con bri{i}_bd
+                bd_name = (bitacora.get(f'bri{i}_bd') or '').strip()
+                if bd_name and bd_name.upper() not in INVALIDOS and bd_name not in seen_vals:
+                    bd_names_to_resolve.append(bd_name)
+                    seen_vals.add(bd_name)
+
+        # Resolver los _bd pendientes vía brigada_tabla
+        if bd_names_to_resolve:
             try:
-                map_res = supabase.table('brigada_tabla').select('name_brigada_bd, brigada_main').in_('name_brigada_bd', raw_names).execute()
+                map_res = supabase.table('brigada_tabla').select('name_brigada_bd, brigada_main').in_('name_brigada_bd', bd_names_to_resolve).execute()
                 mapping = {x['name_brigada_bd']: x['brigada_main'] for x in map_res.data}
-                seen_vals = set()
-                for name in raw_names:
-                    short = mapping.get(name, name)
+                for bd_name in bd_names_to_resolve:
+                    short = mapping.get(bd_name, bd_name)
                     if short not in seen_vals:
                         brigadas.append({'val': short, 'lbl': short})
                         seen_vals.add(short)
+                    else:
+                        # El _bd resolvió al mismo nombre oficial que ya existe → skip
+                        pass
             except:
-                brigadas = [{'val': n, 'lbl': n} for n in raw_names]
+                for n in bd_names_to_resolve:
+                    brigadas.append({'val': n, 'lbl': n})
 
         # Obtener stock disponible por brigada para mostrar advertencias
         stock_brigadas = {}

@@ -257,15 +257,26 @@ def materiales_view(bitacora_id):
         historial = historial_res.data if historial_res.data else []
 
         brigadas = []
-        raw_names = [bitacora.get(f'bri{i}_oficial') for i in range(1, 6) if bitacora.get(f'bri{i}_oficial')]
+        # Recopilar brigadas: bri{i}_oficial tiene prioridad, fallback a bri{i}_bd
+        INVALIDOS = {'', 'NONE', 'NULL', 'NAN', 'NO TIENE', '-', '—', '0', 'NINGUNO'}
+        raw_names = []
+        seen = set()
+        for i in range(1, 6):
+            name = (bitacora.get(f'bri{i}_oficial') or bitacora.get(f'bri{i}_bd') or '').strip()
+            if name and name.upper() not in INVALIDOS and name not in seen:
+                raw_names.append(name)
+                seen.add(name)
 
         if raw_names:
             try:
                 map_res = supabase.table('brigada_tabla').select('name_brigada_bd, brigada_main').in_('name_brigada_bd', raw_names).execute()
                 mapping = {x['name_brigada_bd']: x['brigada_main'] for x in map_res.data}
+                seen_vals = set()
                 for name in raw_names:
                     short = mapping.get(name, name)
-                    brigadas.append({'val': short, 'lbl': short})
+                    if short not in seen_vals:
+                        brigadas.append({'val': short, 'lbl': short})
+                        seen_vals.add(short)
             except:
                 brigadas = [{'val': n, 'lbl': n} for n in raw_names]
 
@@ -461,8 +472,7 @@ def bitacoras_pendientes():
         dias = request.args.get('dias')
 
         query = supabase.table('bitacoras') \
-            .select('id, codigo_bd, nroincidencia_bd, nrotas_bd, nrosot_bd, zona_bd, bri1_oficial, contrata_cicsa, fecha_asignacion_bd, estado_textual_bd, titulo_bd') \
-            .eq('is_cerrada', False)
+            .select('id, codigo_bd, nroincidencia_bd, nrotas_bd, nrosot_bd, zona_bd, bri1_oficial, contrata_cicsa, fecha_asignacion_bd, estado_textual_bd, titulo_bd')
 
         if start_date:
             query = query.gte('fecha_asignacion_bd', f"{start_date}T00:00:00")
@@ -476,7 +486,7 @@ def bitacoras_pendientes():
         if zona:
             query = query.eq('zona_bd', zona)
 
-        res = query.limit(800).execute()
+        res = query.limit(10000).execute()
         bitacoras = res.data or []
 
         if bitacoras:
@@ -501,6 +511,57 @@ def bitacoras_pendientes():
                 b['tiene_material']    = bid in ids_con_material
                 b['tiene_sin_consumo'] = bid in ids_sin_consumo
                 b['identificador']     = get_identifier(b)
+                resultado.append(b)
+
+            return jsonify(resultado)
+
+        return jsonify([])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/buscar-bitacora-bd', methods=['GET'])
+@login_required
+def buscar_bitacora_bd():
+    """Busca una bitácora en toda la base de datos sin límite de fechas."""
+    try:
+        q = request.args.get('q', '').upper().strip()
+        if len(q) < 4:
+            return jsonify([])
+
+        or_cond = f"nroincidencia_bd.ilike.%{q}%,nrotas_bd.ilike.%{q}%,nrosot_bd.ilike.%{q}%,codigo_bd.ilike.%{q}%"
+        if q.isdigit():
+            or_cond += f",id.eq.{int(q)}"
+
+        query = supabase.table('bitacoras') \
+            .select('id, codigo_bd, nroincidencia_bd, nrotas_bd, nrosot_bd, zona_bd, bri1_oficial, contrata_cicsa, fecha_asignacion_bd, estado_textual_bd, titulo_bd') \
+            .or_(or_cond) \
+            .limit(50)
+
+        res = query.execute()
+        bitacoras = res.data or []
+
+        if bitacoras:
+            bids = [str(b['id']) for b in bitacoras]
+            mat_res = supabase.table(Config.ACUMULADO_TABLE) \
+                .select('bitacora_id, cod_material') \
+                .in_('bitacora_id', bids).execute()
+
+            ids_con_material = set()
+            ids_sin_consumo = set()
+            for r in (mat_res.data or []):
+                bid = str(r['bitacora_id'])
+                if r.get('cod_material') == 'SIN_CONSUMO':
+                    ids_sin_consumo.add(bid)
+                else:
+                    ids_con_material.add(bid)
+
+            resultado = []
+            for b in bitacoras:
+                bid = str(b['id'])
+                b['tiene_material'] = bid in ids_con_material
+                b['tiene_sin_consumo'] = bid in ids_sin_consumo
+                b['identificador'] = get_identifier(b)
                 resultado.append(b)
 
             return jsonify(resultado)
@@ -707,6 +768,124 @@ def exportar_semanal():
                          as_attachment=True,
                          download_name=filename)
     except Exception as e:
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/api/exportar-liquidacion')
+@admin_required
+def exportar_liquidacion():
+    """
+    Exporta en formato Liquidación FTTH-HFC (plantilla BBDD CENTRO).
+    Join entre materiales_acumulado y bitacoras para enriquecer los datos.
+    """
+    try:
+        start_date   = request.args.get('start_date')
+        end_date     = request.args.get('end_date')
+        brigada_filter = request.args.get('brigada')
+        zona_filter  = request.args.get('zona')
+
+        # ── 1. Traer datos directo desde la tabla bitacoras ──────────────────
+        query = supabase.table('bitacoras') \
+            .select("id, nroincidencia_bd, nrotas_bd, nrosot_bd, "
+                    "red1_bd, distrito_bd, nombresite_bd, zona_bd, "
+                    "plano_ftth_bd, anillo_hfc_bd, responsable_claro_bd, "
+                    "materiales_bd, bitacora_bd, fechainicial_bd, bri1_oficial, bri1_bd") \
+            .ilike('tipoaveria_bd', '%CORRECTIVO%')
+
+        if start_date:
+            query = query.gte('fechainicial_bd', start_date)
+        if end_date:
+            query = query.lte('fechainicial_bd', end_date)
+        if zona_filter:
+            query = query.ilike('zona_bd', f"%{zona_filter}%")
+
+        b_res = query.execute()
+        bitacoras_data = b_res.data or []
+
+        # ── 2. Filtrar brigada en memoria si aplica ──────────────────────────
+        if brigada_filter:
+            bf = brigada_filter.upper()
+            bitacoras_data = [
+                b for b in bitacoras_data
+                if bf in str(b.get('bri1_oficial') or '').upper() or bf in str(b.get('bri1_bd') or '').upper()
+            ]
+
+        if not bitacoras_data:
+            return "No hay registros MANTENIMIENTO CORRECTIVO en bitácoras para los filtros aplicados.", 404
+
+        # ── 3. Construir filas en formato plantilla ──────────────────────────
+        def inc_tas(b):
+            invalidos = {'', 'NONE', 'NULL', 'NAN', 'NO TIENE', '0'}
+            for campo in ('nroincidencia_bd', 'nrotas_bd', 'nrosot_bd'):
+                val = str(b.get(campo) or '').strip()
+                if val.upper() not in invalidos:
+                    return val
+            return ''
+
+        def plano(b):
+            p = str(b.get('plano_ftth_bd') or '').strip()
+            if p and p.upper() not in ('', 'NONE', 'NULL'):
+                return p
+            return str(b.get('anillo_hfc_bd') or '').strip()
+
+        rows = []
+        for b in bitacoras_data:
+            # Formatear Fecha (fechainicial_bd que es date/timestamp)
+            fecha_raw = b.get('fechainicial_bd')
+            if fecha_raw:
+                try:
+                    fecha_fmt = datetime.datetime.fromisoformat(str(fecha_raw).replace('Z','')).strftime('%d/%m/%Y %H:%M')
+                except:
+                    # Fallback si solo es 'YYYY-MM-DD'
+                    try:
+                        fecha_fmt = datetime.datetime.strptime(str(fecha_raw)[:10], '%Y-%m-%d').strftime('%d/%m/%Y %H:%M')
+                    except:
+                        fecha_fmt = str(fecha_raw)
+            else:
+                fecha_fmt = ''
+
+            # Zona directo desde bitacora (prioridad principal)
+            zona_final = str(b.get('zona_bd') or '')
+
+            rows.append({
+                'FECHA':                   fecha_fmt,
+                'TIPO DE RED':             (b.get('red1_bd') or '').upper(),
+                'INCITAS':                 inc_tas(b),
+                'SOT DE ASIGNACION':       str(b.get('nrosot_bd') or ''),
+                'Distrito':                str(b.get('distrito_bd') or ''),
+                'POP/SITE':                str(b.get('nombresite_bd') or ''),
+                'ANILLO / PLANO':          plano(b),
+                'Responsable Claro':       str(b.get('responsable_claro_bd') or ''),
+                'MATERIAL UTILIZADO':      str(b.get('materiales_bd') or ''),
+                'BITACORA DE LA ATENCION': str(b.get('bitacora_bd') or ''),
+                'ZONA':                    zona_final,
+            })
+
+        df = pd.DataFrame(rows)
+
+        # ── 4. Construir Excel ─────────────────────────────────
+        cols_bbdd = [
+            'FECHA', 'TIPO DE RED', 'INCITAS', 'SOT DE ASIGNACION',
+            'Distrito', 'POP/SITE', 'ANILLO / PLANO', 'Responsable Claro',
+            'MATERIAL UTILIZADO', 'BITACORA DE LA ATENCION', 'ZONA'
+        ]
+        df_bbdd = df[cols_bbdd]
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_bbdd.to_excel(writer, index=False, sheet_name='LIQUIDACION MAT')
+
+        output.seek(0)
+        suffix = f"_{start_date or 'inicio'}_{end_date or 'hoy'}" if (start_date or end_date) else ''
+        filename = f"Liquidacion_FTTH_HFC{suffix}_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        print(f"Error exportar-liquidacion: {e}")
         return f"Error: {str(e)}", 500
 
 

@@ -2,329 +2,565 @@
 {% block title %}Monitor de Coordinador | SysMateriales{% endblock %}
 {% block content %}
 <style>
-    body { background-color: #080e1e; }
-    .glass { background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; backdrop-filter: blur(12px); }
-    .glass-sm { background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; }
-    .th-cell { background: rgba(8,14,30,0.9); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid rgba(255,255,255,0.06); }
-    .tr-row { border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer; transition: background 0.15s; }
-    .tr-row:hover { background: rgba(59,130,246,0.04); }
-    .custom-scroll::-webkit-scrollbar { width: 4px; }
-    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.4); border-radius: 10px; }
-    .filter-input { background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.08); color: #f1f5f9; border-radius: 10px; padding: 7px 12px; font-size: 12px; outline: none; transition: border-color 0.2s; }
-    .filter-input:focus { border-color: rgba(59,130,246,0.6); }
-    .filter-input option { background: #1e293b; }
-    .status-ok   { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: #34d399; }
-    .status-pend { background: rgba(245,158,11,0.1);  border: 1px solid rgba(245,158,11,0.3);  color: #fbbf24; }
+    body { background-color: #060c1a; }
+
+    /* FILTROS */
+    .filter-bar { background: rgba(10,16,38,0.95); border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .f-group { display: flex; flex-direction: column; gap: 3px; }
+    .f-group label { font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #475569; }
+    .f-select, .f-input {
+        height: 36px;
+        background: rgba(15,23,42,0.9);
+        border: 1px solid rgba(255,255,255,0.07);
+        color: #e2e8f0;
+        border-radius: 8px;
+        padding: 0 12px;
+        font-size: 12px;
+        font-weight: 600;
+        outline: none;
+        transition: border-color .2s, box-shadow .2s;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'%3E%3Cpath stroke='%23475569' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        background-size: 14px;
+        padding-right: 28px;
+    }
+    input.f-select, input.f-input {
+        background-image: none;
+        padding-right: 12px;
+    }
+    .f-select:focus, .f-input:focus { border-color: rgba(99,102,241,0.6); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+    .f-select option, .f-input option { background: #1e293b; }
+
+    /* PILLS de fecha rápida */
+    .pill-dias { display: flex; gap: 4px; }
+    .pill {
+        height: 36px; padding: 0 12px; border-radius: 8px; font-size: 11px; font-weight: 700;
+        background: rgba(15,23,42,0.9); border: 1px solid rgba(255,255,255,0.07);
+        color: #64748b; cursor: pointer; transition: all .2s; white-space: nowrap;
+        display: flex; align-items: center;
+    }
+    .pill:hover { border-color: rgba(99,102,241,0.4); color: #a5b4fc; }
+    .pill.active { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.5); color: #818cf8; }
+
+    /* RANGE container */
+    .range-wrap { display: flex; align-items: center; gap: 6px; height: 36px; }
+    .range-wrap input[type=date] {
+        height: 36px; background: rgba(15,23,42,0.9); border: 1px solid rgba(255,255,255,0.07);
+        color: #e2e8f0; border-radius: 8px; padding: 0 10px; font-size: 11px; font-weight: 600;
+        outline: none; cursor: pointer; color-scheme: dark; width: 120px;
+    }
+    .range-wrap input[type=date]:focus { border-color: rgba(99,102,241,0.6); }
+    .range-sep { color: #334155; font-size: 16px; font-weight: 300; }
+
+    /* BUSCADOR */
+    .search-wrap { position: relative; }
+    .search-wrap input {
+        height: 36px; background: rgba(15,23,42,0.9); border: 1px solid rgba(255,255,255,0.07);
+        color: #e2e8f0; border-radius: 8px; padding: 0 76px 0 36px; font-size: 12px; font-weight: 500;
+        outline: none; width: 280px; transition: border-color .2s, box-shadow .2s;
+    }
+    .search-wrap input:focus { border-color: rgba(99,102,241,0.6); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+    .search-wrap input::placeholder { color: #475569; }
+    .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #475569; font-size: 11px; }
+    .search-bd-btn {
+        position: absolute; right: 4px; top: 4px; bottom: 4px;
+        background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.25);
+        color: #f59e0b; border-radius: 5px; padding: 0 10px; font-size: 10px; font-weight: 700;
+        cursor: pointer; display: flex; align-items: center; gap: 5px;
+        transition: all .2s;
+    }
+    .search-bd-btn:hover { background: rgba(245,158,11,0.25); color: #fbbf24; }
+    .btn-restaurar { font-size: 10px; color: #64748b; background: none; border: none; cursor: pointer; text-decoration: underline; white-space: nowrap; }
+    .btn-restaurar:hover { color: #e2e8f0; }
+
+    /* KPIs */
+    .kpi-card {
+        background: rgba(10,16,38,0.8);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 16px;
+        padding: 20px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        transition: transform .2s, box-shadow .2s;
+    }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .kpi-label { font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+    .kpi-value { font-size: 2.4rem; font-weight: 900; line-height: 1; }
+    .kpi-sub { font-size: 10px; font-weight: 600; margin-top: 4px; }
+    .kpi-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+
+    /* Barra de progreso */
+    .progress-bar-track { height: 4px; background: rgba(255,255,255,0.05); border-radius: 99px; margin-top: 8px; overflow: hidden; }
+    .progress-bar-fill  { height: 100%; border-radius: 99px; transition: width .6s ease; }
+
+    /* TABLA */
+    .table-card { background: rgba(10,16,38,0.8); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; overflow: hidden; }
+    .th-cell { background: rgba(5,10,25,0.98); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #334155; padding: 11px 16px; }
+    .tr-row { border-bottom: 1px solid rgba(255,255,255,0.025); cursor: pointer; transition: background .12s; }
+    .tr-row:hover { background: rgba(99,102,241,0.035); }
+    .tr-row:last-child { border-bottom: none; }
+    .custom-scroll::-webkit-scrollbar { width: 3px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.35); border-radius: 99px; }
+
+    /* Status badges */
+    .badge-ok   { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); color: #34d399; }
+    .badge-pend { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); color: #fbbf24; }
+    .badge-sc   { background: rgba(100,116,139,0.08); border: 1px solid rgba(100,116,139,0.2); color: #94a3b8; }
+    .badge { font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+    /* Chip brigada */
+    .chip { background: rgba(15,23,42,0.9); border: 1px solid rgba(255,255,255,0.06); color: #94a3b8; font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 5px; text-transform: uppercase; letter-spacing: .04em; }
+
+    /* Divider modo fecha */
+    .mode-toggle-wrap { display: flex; align-items: center; gap: 0; background: rgba(15,23,42,0.9); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; overflow: hidden; height: 36px; }
+    .mode-btn { height: 100%; padding: 0 12px; font-size: 11px; font-weight: 700; color: #475569; background: none; border: none; cursor: pointer; transition: all .2s; white-space: nowrap; }
+    .mode-btn.active { background: rgba(99,102,241,0.2); color: #818cf8; }
+    .mode-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.07); flex-shrink: 0; }
+
+    .refresh-btn { height: 36px; width: 36px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.2); color: #818cf8; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; cursor: pointer; transition: all .2s; }
+    .refresh-btn:hover { background: rgba(99,102,241,0.22); color: #a5b4fc; transform: rotate(45deg); }
+
+    .bd-mode-banner {
+        display: none; align-items: center; gap: 8px; padding: 6px 14px;
+        background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);
+        border-radius: 8px; font-size: 11px; font-weight: 700; color: #fbbf24;
+    }
+    .bd-mode-banner.visible { display: flex; }
 </style>
 
-<div class="max-w-screen-2xl mx-auto px-5 py-8 fade-in">
+<div class="fade-in" style="min-height:100vh;">
 
-    <!-- CABECERA -->
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-5">
-        <div>
-            <h1 class="text-3xl font-black brand-font text-white flex items-center gap-3">
-                <div class="w-10 h-10 bg-gradient-to-br from-amber-600 to-orange-700 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                    <i class="fa-solid fa-radar text-base"></i>
-                </div>
-                Monitor de Coordinador
-            </h1>
-            <p class="text-slate-500 text-sm mt-1.5 ml-1">Supervisión de cumplimiento de registro de materiales por bitácora</p>
+    <!-- HEADER -->
+    <div class="px-6 pt-7 pb-5 max-w-screen-2xl mx-auto">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+                <h1 class="text-2xl font-black brand-font text-white flex items-center gap-3">
+                    <div class="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-900/30 text-sm">
+                        <i class="fa-solid fa-radar"></i>
+                    </div>
+                    Monitor de Coordinador
+                </h1>
+                <p class="text-slate-600 text-xs mt-1.5 ml-0.5">Supervisión de cumplimiento de registro de materiales por bitácora</p>
+            </div>
+            <!-- Indicador modo BD -->
+            <div class="bd-mode-banner" id="bdBanner">
+                <i class="fa-solid fa-database text-xs"></i>
+                Búsqueda global activa
+                <button onclick="limpiarBusquedaBD()" class="ml-2 text-[10px] underline opacity-70 hover:opacity-100">Restaurar vista</button>
+            </div>
         </div>
-        <!-- ── FILTROS ── -->
-        <div class="flex flex-wrap items-end gap-3 mt-4 lg:mt-0">
+    </div>
 
-            <!-- Zona -->
-            <div class="flex flex-col gap-1 hidden lg:flex">
-                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Zona</label>
-                <select id="filterZona" onchange="cargar()" class="filter-input" style="height:34px; min-width:110px;">
-                    <option value="">Todas</option>
-                    {% for z in zonas %}
-                    <option value="{{ z }}">{{ z }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+    <!-- BARRA DE FILTROS — 2 filas -->
+    <div class="filter-bar px-6 py-0 mb-6">
+        <div class="max-w-screen-2xl mx-auto">
 
-            <!-- Fechas -->
-            <div class="flex flex-col gap-1">
-                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Fechas</label>
-                <div class="flex items-center gap-0 bg-[rgba(15,23,42,0.8)] border border-[rgba(255,255,255,0.08)] rounded-lg overflow-hidden" style="height:34px;" id="dateFilterMode">
-                    <select id="filterDateMode" onchange="toggleDateFilter()" class="filter-input border-none bg-transparent px-2 py-0 h-full text-xs focus:ring-0 shrink-0" style="width:70px;">
-                        <option value="dias">Días</option>
-                        <option value="rango">Fechas</option>
+            <!-- FILA 1: Zona + Fechas + Refresh -->
+            <div style="display:flex; align-items:center; gap:20px; padding:12px 0 10px; border-bottom:1px solid rgba(255,255,255,0.04);">
+
+                <!-- Zona -->
+                <div class="f-group">
+                    <label><i class="fa-solid fa-map-pin mr-1"></i>Zona</label>
+                    <select id="filterZona" onchange="cargar()" class="f-select" style="min-width:120px;">
+                        <option value="">Todas</option>
+                        {% for z in zonas %}
+                        <option value="{{ z }}">{{ z }}</option>
+                        {% endfor %}
                     </select>
-                    <div class="w-px h-4 bg-white/10"></div>
-                    <div id="diasDiv" class="flex items-center h-full">
-                        <select id="filterDias" onchange="cargar()" class="filter-input border-none bg-transparent px-2 py-0 h-full text-xs font-bold text-amber-400 focus:ring-0" style="width:70px;">
-                            <option value="3">3 días</option>
-                            <option value="7" selected>7 días</option>
-                            <option value="14">14 días</option>
-                            <option value="30">1 mes</option>
-                        </select>
-                    </div>
-                    <div id="rangoDiv" class="hidden items-center gap-1 px-2 h-full">
-                        <input type="date" id="startDate" onchange="cargar()" class="filter-input border-none bg-transparent py-0 text-xs h-full" style="width:110px; color-scheme: dark;">
-                        <span class="text-slate-600 text-xs">→</span>
-                        <input type="date" id="endDate"   onchange="cargar()" class="filter-input border-none bg-transparent py-0 text-xs h-full" style="width:110px; color-scheme: dark;">
+                </div>
+
+                <!-- Separador visual -->
+                <div style="width:1px; height:40px; background:rgba(255,255,255,0.05); flex-shrink:0;"></div>
+
+                <!-- Rango Fechas -->
+                <div class="f-group" style="flex:1;">
+                    <label><i class="fa-regular fa-calendar mr-1"></i>Período de tiempo</label>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+
+                        <!-- Toggle Rápido/Rango -->
+                        <div class="mode-toggle-wrap">
+                            <button class="mode-btn active" id="btnModoDias" onclick="setModo('dias')">Rápido</button>
+                            <div class="mode-divider"></div>
+                            <button class="mode-btn" id="btnModoRango" onclick="setModo('rango')">Personalizado</button>
+                        </div>
+
+                        <!-- Pills días -->
+                        <div class="pill-dias" id="diasDiv">
+                            <button class="pill" onclick="selDias(3,this)">3 días</button>
+                            <button class="pill active" onclick="selDias(7,this)">7 días</button>
+                            <button class="pill" onclick="selDias(14,this)">14 días</button>
+                            <button class="pill" onclick="selDias(30,this)">1 mes</button>
+                            <button class="pill" onclick="selDias(60,this)">2 meses</button>
+                            <button class="pill" onclick="selDias(90,this)">3 meses</button>
+                            <button class="pill" onclick="selDias(365,this)">1 año</button>
+                        </div>
+
+                        <!-- Rango personalizado -->
+                        <div class="range-wrap" id="rangoDiv" style="display:none;">
+                            <input type="date" id="startDate" onchange="cargar()" style="color-scheme:dark;">
+                            <span class="range-sep">—</span>
+                            <input type="date" id="endDate" onchange="cargar()" style="color-scheme:dark;">
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Contrata -->
-            <div class="flex flex-col gap-1">
-                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Contrata</label>
-                <select id="filterContrata" onchange="renderBitacoras()" class="filter-input" style="height:34px; min-width:120px;">
-                    <option value="all">Todas</option>
-                </select>
-            </div>
-
-            <!-- Brigada -->
-            <div class="flex flex-col gap-1">
-                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Brigada</label>
-                <select id="filterBrigada" onchange="renderBitacoras()" class="filter-input" style="height:34px; min-width:120px;">
-                    <option value="all">Todas</option>
-                </select>
-            </div>
-
-            <!-- Ver -->
-            <div class="flex flex-col gap-1">
-                <label class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Ver</label>
-                <select id="filterStatus" onchange="renderBitacoras()" class="filter-input" style="height:34px; min-width:110px;">
-                    <option value="all">Todas</option>
-                    <option value="pendiente">Sin Mat.</option>
-                    <option value="sin_consumo">Sin consumo</option>
-                    <option value="ok">Con Mat.</option>
-                </select>
-            </div>
-
-            <!-- Botón actualizar -->
-            <div class="flex flex-col gap-1">
-                <label class="text-[10px] text-transparent font-bold uppercase tracking-widest select-none">·</label>
-                <button onclick="cargar()" class="flex items-center justify-center gap-2 px-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition" style="height:34px; min-width:40px;" title="Actualizar Datos">
+                <!-- Refresh -->
+                <button class="refresh-btn" onclick="cargar()" title="Actualizar datos" style="flex-shrink:0; margin-top:14px;">
                     <i class="fa-solid fa-arrows-rotate"></i>
                 </button>
             </div>
 
+            <!-- FILA 2: Contrata + Brigada + Estado + Buscador -->
+            <div style="display:flex; align-items:center; gap:14px; padding:10px 0 12px; flex-wrap:wrap;">
+
+                <div class="f-group">
+                    <label><i class="fa-solid fa-building mr-1"></i>Contrata</label>
+                    <select id="filterContrata" onchange="renderBitacoras()" class="f-select" style="min-width:140px;">
+                        <option value="all">Todas</option>
+                    </select>
+                </div>
+
+                <div class="f-group">
+                    <label><i class="fa-solid fa-users mr-1"></i>Brigada</label>
+                    <select id="filterBrigada" onchange="renderBitacoras()" class="f-select" style="min-width:140px;">
+                        <option value="all">Todas</option>
+                    </select>
+                </div>
+
+                <div class="f-group">
+                    <label><i class="fa-solid fa-filter mr-1"></i>Estado</label>
+                    <select id="filterStatus" onchange="renderBitacoras()" class="f-select" style="min-width:140px;">
+                        <option value="all">Todos</option>
+                        <option value="pendiente">⚠ Pendiente</option>
+                        <option value="ok">✔ Con material</option>
+                        <option value="sin_consumo">⊘ Sin consumo</option>
+                    </select>
+                </div>
+
+                <!-- Separador -->
+                <div style="width:1px; height:40px; background:rgba(255,255,255,0.05); flex-shrink:0; margin-top:14px;"></div>
+
+                <!-- Buscador -->
+                <div class="f-group" style="flex:1; min-width:240px;">
+                    <label><i class="fa-solid fa-magnifying-glass mr-1"></i>Buscar ticket &ensp;<span style="color:#f59e0b; font-weight:700;">Enter = buscar en toda la BD</span></label>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <div class="search-wrap" style="flex:1;">
+                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <input type="text" id="searchTable" oninput="buscar()" onkeydown="handleSearchKey(event)"
+                                   placeholder="INC, TAS, SOT, brigada..." style="width:100%;">
+                            <button class="search-bd-btn" onclick="buscarEnBD()" title="Buscar en toda la base de datos">
+                                <i class="fa-solid fa-database"></i> Buscar BD
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
     </div>
 
-    <!-- KPIs -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div class="glass p-5 flex items-center justify-between">
-            <div>
-                <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Bitácoras</div>
-                <div class="text-3xl font-black text-white" id="kpi-total">—</div>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-blue-500/15 flex items-center justify-center text-blue-400 text-xl"><i class="fa-solid fa-book-open"></i></div>
-        </div>
-        <div class="glass p-5 flex items-center justify-between border border-emerald-500/20">
-            <div>
-                <div class="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Con Material</div>
-                <div class="text-3xl font-black text-emerald-400" id="kpi-con">—</div>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-emerald-500/15 flex items-center justify-center text-emerald-400 text-xl"><i class="fa-solid fa-circle-check"></i></div>
-        </div>
-        <div class="glass p-5 flex items-center justify-between border border-amber-500/20">
-            <div>
-                <div class="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1">Sin Material</div>
-                <div class="text-3xl font-black text-amber-400" id="kpi-sin">—</div>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-amber-500/15 flex items-center justify-center text-amber-400 text-xl animate-pulse"><i class="fa-solid fa-circle-exclamation"></i></div>
-        </div>
-        <div class="glass p-5 flex items-center justify-between">
-            <div>
-                <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Cumplimiento</div>
-                <div class="text-3xl font-black text-white" id="kpi-cumpl">—</div>
-            </div>
-            <div class="w-12 h-12 rounded-full bg-indigo-500/15 flex items-center justify-center text-indigo-400 text-xl"><i class="fa-solid fa-percent"></i></div>
-        </div>
-    </div>
+    <div class="max-w-screen-2xl mx-auto px-6 pb-8">
 
-    <!-- TABLA -->
-    <div class="glass overflow-hidden">
-        <div class="px-6 py-4 border-b border-white/5 flex justify-between items-center">
-            <h2 class="text-sm font-bold text-white flex items-center gap-2">
-                <i class="fa-solid fa-list-check text-amber-400 text-xs"></i> Bitácoras en Curso — Estado de Registro de Materiales
-            </h2>
-            <div class="relative">
-                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
-                <input type="text" id="searchTable" oninput="buscar()" placeholder="Buscar incidencia, brigada..." class="filter-input pl-8 w-56 text-xs py-2">
+        <!-- KPIs -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+            <div class="kpi-card">
+                <div style="flex:1; min-width:0;">
+                    <div class="kpi-label" style="color:#475569;">Total Bitácoras</div>
+                    <div class="kpi-value text-white" id="kpi-total">—</div>
+                    <div class="kpi-sub" style="color:#334155;">en el período</div>
+                </div>
+                <div class="kpi-icon" style="background:rgba(99,102,241,0.1); color:#818cf8;">
+                    <i class="fa-solid fa-book-open"></i>
+                </div>
             </div>
+
+            <div class="kpi-card" style="border-color:rgba(16,185,129,0.12);">
+                <div style="flex:1; min-width:0;">
+                    <div class="kpi-label" style="color:#059669;">Con Material</div>
+                    <div class="kpi-value" style="color:#34d399;" id="kpi-con">—</div>
+                    <div class="kpi-sub" style="color:#065f46;">registros completos</div>
+                </div>
+                <div class="kpi-icon" style="background:rgba(16,185,129,0.1); color:#34d399;">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="border-color:rgba(245,158,11,0.12);">
+                <div style="flex:1; min-width:0;">
+                    <div class="kpi-label" style="color:#b45309;">Sin Material</div>
+                    <div class="kpi-value" style="color:#fbbf24;" id="kpi-sin">—</div>
+                    <div class="kpi-sub" style="color:#78350f;">pendientes de registro</div>
+                </div>
+                <div class="kpi-icon" style="background:rgba(245,158,11,0.1); color:#fbbf24;">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="border-color:rgba(139,92,246,0.12);">
+                <div style="flex:1; min-width:0;">
+                    <div class="kpi-label" style="color:#6d28d9;">Cumplimiento</div>
+                    <div class="kpi-value" style="color:#a78bfa;" id="kpi-cumpl">—</div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="kpi-bar" style="width:0%; background: linear-gradient(90deg,#6366f1,#8b5cf6);"></div>
+                    </div>
+                </div>
+                <div class="kpi-icon" style="background:rgba(139,92,246,0.1); color:#a78bfa;">
+                    <i class="fa-solid fa-percent"></i>
+                </div>
+            </div>
+
         </div>
 
-        <div class="overflow-x-auto max-h-[65vh] custom-scroll">
-            <table class="w-full text-left text-xs whitespace-nowrap">
-                <thead>
-                    <tr class="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                        <th class="th-cell px-5 py-3">Estado</th>
-                        <th class="th-cell px-5 py-3">Incidencia</th>
-                        <th class="th-cell px-5 py-3">Zona</th>
-                        <th class="th-cell px-5 py-3">Contrata</th>
-                        <th class="th-cell px-5 py-3">Brigada</th>
-                        <th class="th-cell px-5 py-3">Asignación</th>
-                        <th class="th-cell px-5 py-3">Tipo</th>
-                        <th class="th-cell px-5 py-3">Acceso Directo</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBitacoras">
-                    <tr><td colspan="8" class="px-5 py-16 text-center text-slate-500">
-                        <i class="fa-solid fa-circle-notch fa-spin text-2xl text-amber-500 block mb-3"></i>
-                        <span class="text-xs font-bold uppercase tracking-widest">Cargando radar...</span>
-                    </td></tr>
-                </tbody>
-            </table>
+        <!-- TABLA -->
+        <div class="table-card">
+
+            <!-- Header tabla -->
+            <div style="padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.04); display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-list-check" style="color:#f59e0b; font-size:11px;"></i>
+                    <span style="font-size:13px; font-weight:700; color:#e2e8f0;">Bitácoras — Estado de Registro de Materiales</span>
+                    <span id="tableCount" style="font-size:10px; font-weight:700; color:#334155; border:1px solid rgba(255,255,255,0.05); background:rgba(15,23,42,0.9); padding:2px 8px; border-radius:99px;"></span>
+                </div>
+                <div style="font-size:10px; color:#334155; font-style:italic;" id="lastUpdateLabel"></div>
+            </div>
+
+            <div class="overflow-x-auto custom-scroll" style="max-height:62vh;">
+                <table style="width:100%; text-align:left; font-size:11px; white-space:nowrap; border-collapse:collapse;">
+                    <thead>
+                        <tr>
+                            <th class="th-cell">Estado</th>
+                            <th class="th-cell">Incidencia / Ticket</th>
+                            <th class="th-cell">Zona</th>
+                            <th class="th-cell">Contrata</th>
+                            <th class="th-cell">Brigada</th>
+                            <th class="th-cell">Asignación</th>
+                            <th class="th-cell">Tipo / Estado</th>
+                            <th class="th-cell" style="text-align:center;">Acceso</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBitacoras">
+                        <tr><td colspan="8" style="padding:60px 20px; text-align:center; color:#334155;">
+                            <i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px; color:#f59e0b; display:block; margin-bottom:10px;"></i>
+                            <span style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.1em;">Cargando radar...</span>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+
         </div>
     </div>
 </div>
 
 <script>
     let allBitacoras = [];
+    let isBDSearchActive = false;
+    let bdSearchData = [];
+    let currentDias = 7;
 
-    function toggleDateFilter() {
-        const mode = document.getElementById('filterDateMode').value;
-        const diasDiv = document.getElementById('diasDiv');
-        const rangoDiv = document.getElementById('rangoDiv');
-        if(mode === 'dias') {
-            diasDiv.style.display = 'flex';
-            rangoDiv.style.display = 'none';
-        } else {
-            diasDiv.style.display = 'none';
-            rangoDiv.style.display = 'flex';
-        }
+    // ─── Modo fecha ─────────────────────────────────────────────────────────────
+    function setModo(modo) {
+        document.getElementById('btnModoDias').classList.toggle('active', modo === 'dias');
+        document.getElementById('btnModoRango').classList.toggle('active', modo === 'rango');
+        document.getElementById('diasDiv').style.display  = modo === 'dias'  ? 'flex' : 'none';
+        document.getElementById('rangoDiv').style.display = modo === 'rango' ? 'flex' : 'none';
         cargar();
     }
 
+    function selDias(d, el) {
+        currentDias = d;
+        document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+        el.classList.add('active');
+        cargar();
+    }
+
+    // ─── Búsqueda en BD ─────────────────────────────────────────────────────────
+    function handleSearchKey(event) {
+        if(event.key === 'Enter') buscarEnBD();
+    }
+
+    async function buscarEnBD() {
+        const q = document.getElementById('searchTable').value.trim();
+        if(q.length < 4) {
+            alert('Ingresa al menos 4 caracteres para buscar en toda la base de datos.');
+            return;
+        }
+        document.getElementById('tableBitacoras').innerHTML = loadingRow('Buscando en toda la BD...');
+        try {
+            const res = await fetch('/api/buscar-bitacora-bd?q=' + encodeURIComponent(q));
+            bdSearchData = await res.json();
+            isBDSearchActive = true;
+            document.getElementById('bdBanner').classList.add('visible');
+            renderBitacoras();
+        } catch(e) {
+            document.getElementById('tableBitacoras').innerHTML = errorRow();
+        }
+    }
+
+    function limpiarBusquedaBD() {
+        isBDSearchActive = false;
+        document.getElementById('bdBanner').classList.remove('visible');
+        document.getElementById('searchTable').value = '';
+        renderBitacoras();
+    }
+
+    // ─── Carga principal ────────────────────────────────────────────────────────
     async function cargar() {
-        const zona  = document.getElementById('filterZona').value;
-        const mode  = document.getElementById('filterDateMode').value;
+        if(isBDSearchActive) return;
 
-        document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="8" class="px-5 py-16 text-center text-slate-500">
-            <i class="fa-solid fa-circle-notch fa-spin text-2xl text-amber-500 block mb-3"></i>
-            <span class="text-xs font-bold uppercase tracking-widest">Escaneando bitácoras...</span></td></tr>`;
+        document.getElementById('tableBitacoras').innerHTML = loadingRow('Escaneando bitácoras...');
 
-        let url = `/api/bitacoras-pendientes?`;
-        
-        if (mode === 'dias') {
-            const dias = document.getElementById('filterDias').value;
-            url += `dias=${dias}`;
-        } else {
+        const zona = document.getElementById('filterZona').value;
+        const modoRango = document.getElementById('btnModoRango').classList.contains('active');
+
+        let url = '/api/bitacoras-pendientes?';
+        if(modoRango) {
             const sd = document.getElementById('startDate').value;
             const ed = document.getElementById('endDate').value;
-            if(sd) url += `start_date=${sd}&`;
-            if(ed) url += `end_date=${ed}&`;
+            if(sd) url += 'start_date=' + sd + '&';
+            if(ed) url += 'end_date=' + ed + '&';
+        } else {
+            url += 'dias=' + currentDias;
         }
-        if(zona) url += `&zona=${encodeURIComponent(zona)}`;
+        if(zona) url += '&zona=' + encodeURIComponent(zona);
 
         try {
             const res = await fetch(url);
             allBitacoras = await res.json();
             populateSelects();
             renderBitacoras();
+            document.getElementById('lastUpdateLabel').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit'});
         } catch(e) {
-            document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="8" class="p-10 text-center text-red-400 font-bold">Error de conexión</td></tr>`;
+            document.getElementById('tableBitacoras').innerHTML = errorRow();
         }
     }
-    
+
     function populateSelects() {
-        const selContrata = document.getElementById('filterContrata');
-        const selBrigada = document.getElementById('filterBrigada');
-        
-        const actContrata = selContrata.value;
-        const actBrigada = selBrigada.value;
-        
-        let contratas = new Set();
-        let brigadas = new Set();
-        
+        const selC = document.getElementById('filterContrata');
+        const selB = document.getElementById('filterBrigada');
+        const prevC = selC.value, prevB = selB.value;
+
+        let contratas = new Set(), brigadas = new Set();
         allBitacoras.forEach(b => {
-             if(b.contrata_cicsa) contratas.add(b.contrata_cicsa.trim().toUpperCase());
-             if(b.bri1_oficial) brigadas.add(b.bri1_oficial.trim().toUpperCase());
+            if(b.contrata_cicsa) contratas.add(b.contrata_cicsa.trim().toUpperCase());
+            if(b.bri1_oficial)   brigadas.add(b.bri1_oficial.trim().toUpperCase());
         });
-        
-        // Render Contratas
+
         let hc = '<option value="all">Todas</option>';
         [...contratas].sort().forEach(c => hc += `<option value="${c}">${c}</option>`);
-        selContrata.innerHTML = hc;
-        if([...contratas].includes(actContrata)) selContrata.value = actContrata;
-        
-        // Render Brigadas
+        selC.innerHTML = hc;
+        if([...contratas].includes(prevC)) selC.value = prevC;
+
         let hb = '<option value="all">Todas</option>';
         [...brigadas].sort().forEach(b => hb += `<option value="${b}">${b}</option>`);
-        selBrigada.innerHTML = hb;
-        if([...brigadas].includes(actBrigada)) selBrigada.value = actBrigada;
+        selB.innerHTML = hb;
+        if([...brigadas].includes(prevB)) selB.value = prevB;
     }
 
+    // ─── Render tabla ───────────────────────────────────────────────────────────
     function renderBitacoras() {
-        const statusFilter = document.getElementById('filterStatus').value;
-        const contrataFilter = document.getElementById('filterContrata').value;
-        const brigadaFilter = document.getElementById('filterBrigada').value;
-        const q = document.getElementById('searchTable').value.toLowerCase();
+        const statusF   = document.getElementById('filterStatus').value;
+        const contrataF = document.getElementById('filterContrata').value;
+        const brigadaF  = document.getElementById('filterBrigada').value;
+        const q         = document.getElementById('searchTable').value.toLowerCase();
 
-        let data = allBitacoras;
-        if(statusFilter === 'pendiente')   data = data.filter(b => !b.tiene_material && !b.tiene_sin_consumo);
-        if(statusFilter === 'ok')          data = data.filter(b => b.tiene_material);
-        if(statusFilter === 'sin_consumo') data = data.filter(b => b.tiene_sin_consumo && !b.tiene_material);
-        if(contrataFilter !== 'all') data = data.filter(b => (b.contrata_cicsa || '').toUpperCase() === contrataFilter);
-        if(brigadaFilter !== 'all') data = data.filter(b => (b.bri1_oficial || '').toUpperCase() === brigadaFilter);
-        if(q.length >= 2) data = data.filter(b => JSON.stringify(b).toLowerCase().includes(q));
+        let data = isBDSearchActive ? bdSearchData : allBitacoras;
 
-        // Sort: pendiente primero, luego sin_consumo, luego con material
+        if(statusF === 'pendiente')   data = data.filter(b => !b.tiene_material && !b.tiene_sin_consumo);
+        if(statusF === 'ok')          data = data.filter(b => b.tiene_material);
+        if(statusF === 'sin_consumo') data = data.filter(b => b.tiene_sin_consumo && !b.tiene_material);
+        if(contrataF !== 'all') data = data.filter(b => (b.contrata_cicsa||'').toUpperCase() === contrataF);
+        if(brigadaF  !== 'all') data = data.filter(b => (b.bri1_oficial||'').toUpperCase() === brigadaF);
+        if(!isBDSearchActive && q.length >= 2) data = data.filter(b => JSON.stringify(b).toLowerCase().includes(q));
+
         data.sort((a, b) => {
             const priA = a.tiene_material ? 2 : (a.tiene_sin_consumo ? 1 : 0);
             const priB = b.tiene_material ? 2 : (b.tiene_sin_consumo ? 1 : 0);
             return priA - priB;
         });
 
+        // KPIs
         const con   = allBitacoras.filter(b => b.tiene_material).length;
         const sc    = allBitacoras.filter(b => b.tiene_sin_consumo && !b.tiene_material).length;
         const sin   = allBitacoras.filter(b => !b.tiene_material && !b.tiene_sin_consumo).length;
         const total = allBitacoras.length;
-        const cumpl = total ? Math.round(((con + sc) / total) * 100) : 0;
+        const pct   = total ? Math.round(((con + sc) / total) * 100) : 0;
 
         document.getElementById('kpi-total').textContent = total;
-        document.getElementById('kpi-con').textContent = con;
-        document.getElementById('kpi-sin').textContent = sin;
-        document.getElementById('kpi-cumpl').textContent = cumpl + '%';
+        document.getElementById('kpi-con').textContent   = con;
+        document.getElementById('kpi-sin').textContent   = sin;
+        document.getElementById('kpi-cumpl').textContent = pct + '%';
+        document.getElementById('kpi-bar').style.width   = pct + '%';
+        document.getElementById('tableCount').textContent = data.length + ' resultados';
 
         if(!data.length) {
-            document.getElementById('tableBitacoras').innerHTML = `<tr><td colspan="8" class="px-5 py-12 text-center text-slate-600 text-xs font-bold uppercase tracking-widest">Sin bitácoras para los filtros aplicados</td></tr>`;
+            document.getElementById('tableBitacoras').innerHTML = emptyRow();
             return;
         }
 
         let html = '';
         data.forEach(b => {
-            const statusBadge = b.tiene_material
-                ? `<span class="status-ok text-[9px] font-black px-2 py-1 rounded-lg flex items-center gap-1 w-fit"><i class="fa-solid fa-check text-[8px]"></i>Registrado</span>`
+            const badge = b.tiene_material
+                ? `<span class="badge badge-ok"><i class="fa-solid fa-check" style="font-size:8px;"></i>Registrado</span>`
                 : b.tiene_sin_consumo
-                    ? `<span class="text-[9px] font-black px-2 py-1 rounded-lg flex items-center gap-1 w-fit" style="background:rgba(100,116,139,0.15);border:1px solid rgba(100,116,139,0.3);color:#94a3b8;"><i class="fa-solid fa-ban text-[8px]"></i>Sin consumo</span>`
-                    : `<span class="status-pend text-[9px] font-black px-2 py-1 rounded-lg flex items-center gap-1 w-fit animate-pulse"><i class="fa-solid fa-circle-exclamation text-[8px]"></i>Pendiente</span>`;
+                    ? `<span class="badge badge-sc"><i class="fa-solid fa-ban" style="font-size:8px;"></i>Sin consumo</span>`
+                    : `<span class="badge badge-pend animate-pulse"><i class="fa-solid fa-circle-exclamation" style="font-size:8px;"></i>Pendiente</span>`;
 
             const fecha = b.fecha_asignacion_bd
-                ? new Date(b.fecha_asignacion_bd).toLocaleDateString('es-PE', {day:'2-digit', month:'short'})
+                ? new Date(b.fecha_asignacion_bd).toLocaleDateString('es-PE', {day:'2-digit', month:'short', year:'2-digit'})
                 : '—';
 
             html += `<tr class="tr-row">
-                <td class="px-5 py-3">${statusBadge}</td>
-                <td class="px-5 py-3">
-                    <div class="font-black brand-font text-slate-100 text-sm">${b.identificador || b.id}</div>
-                    <div class="text-[9px] text-slate-600">ID: ${b.id}</div>
+                <td style="padding:10px 16px;">${badge}</td>
+                <td style="padding:10px 16px;">
+                    <div style="font-weight:900; color:#f1f5f9; font-size:12px; font-family:'JetBrains Mono','Fira Code',monospace;">${b.identificador || b.id}</div>
+                    <div style="font-size:9px; color:#334155; margin-top:2px;">ID ${b.id}</div>
                 </td>
-                <td class="px-5 py-3 text-slate-400 text-[11px] font-semibold">${b.zona_bd || '—'}</td>
-                <td class="px-5 py-3">
-                    <span class="text-[10px] text-slate-300 font-bold uppercase">${(b.contrata_cicsa || '—').substring(0, 15)}</span>
+                <td style="padding:10px 16px;">
+                    <span style="font-size:10px; font-weight:700; color:#64748b;">${b.zona_bd || '—'}</span>
                 </td>
-                <td class="px-5 py-3">
-                    <span class="bg-slate-800/80 text-slate-300 border border-slate-700/60 px-2 py-1 rounded-lg text-[10px] font-black uppercase">${b.bri1_oficial || '—'}</span>
+                <td style="padding:10px 16px;">
+                    <span style="font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase;">${(b.contrata_cicsa||'—').substring(0,16)}</span>
                 </td>
-                <td class="px-5 py-3 font-mono text-slate-400">${fecha}</td>
-                <td class="px-5 py-3 text-slate-400 text-[11px]">${(b.estado_textual_bd || '').substring(0, 20)}</td>
-                <td class="px-5 py-3">
-                    <a href="/materiales/${b.id}" target="_blank" class="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 font-bold text-[11px] transition">
-                        <i class="fa-solid fa-external-link-alt text-[9px]"></i>Abrir Formulario
+                <td style="padding:10px 16px;">
+                    <span class="chip">${b.bri1_oficial||'—'}</span>
+                </td>
+                <td style="padding:10px 16px; font-size:10px; color:#64748b; font-family:monospace;">${fecha}</td>
+                <td style="padding:10px 16px; font-size:10px; color:#475569; max-width:160px; overflow:hidden; text-overflow:ellipsis;">${(b.estado_textual_bd||'').substring(0,22)}</td>
+                <td style="padding:10px 16px; text-align:center;">
+                    <a href="/materiales/${b.id}" target="_blank" style="display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#6366f1; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.18); padding:4px 10px; border-radius:6px; text-decoration:none; transition:all .2s;" onmouseover="this.style.background='rgba(99,102,241,0.18)'" onmouseout="this.style.background='rgba(99,102,241,0.08)'">
+                        <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:9px;"></i>Abrir
                     </a>
                 </td>
             </tr>`;
         });
 
         document.getElementById('tableBitacoras').innerHTML = html;
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────────
+    function loadingRow(msg) {
+        return `<tr><td colspan="8" style="padding:60px 20px; text-align:center; color:#334155;">
+            <i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px; color:#f59e0b; display:block; margin-bottom:10px;"></i>
+            <span style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.1em;">${msg}</span>
+        </td></tr>`;
+    }
+    function emptyRow() {
+        return `<tr><td colspan="8" style="padding:60px 20px; text-align:center; color:#334155;">
+            <i class="fa-regular fa-folder-open" style="font-size:28px; display:block; margin-bottom:10px; color:#1e293b;"></i>
+            <span style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.1em;">Sin bitácoras para los filtros aplicados</span>
+        </td></tr>`;
+    }
+    function errorRow() {
+        return `<tr><td colspan="8" style="padding:40px; text-align:center; color:#f87171; font-weight:700; font-size:12px;">
+            <i class="fa-solid fa-triangle-exclamation" style="display:block; margin-bottom:8px; font-size:20px;"></i>Error de conexión
+        </td></tr>`;
     }
 
     function buscar() { renderBitacoras(); }

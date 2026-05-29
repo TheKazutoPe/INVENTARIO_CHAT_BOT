@@ -282,7 +282,7 @@
                         </div>
                         <div class="flex flex-col items-end justify-between shrink-0 h-full ml-3">
                             <div class="text-right">
-                                <div class="font-black brand-font text-3xl text-slate-800 leading-none">{{ item.cant_material | int }}</div>
+                                <div class="font-black brand-font text-3xl text-slate-800 leading-none">{% if item.cant_material % 1 == 0 %}{{ item.cant_material | int }}{% else %}{{ item.cant_material }}{% endif %}</div>
                                 <div class="text-[9px] text-slate-400 font-bold uppercase">unid.</div>
                             </div>
                             <button onclick="deleteItem({{ item.id }})" class="mt-3 min-h-[44px] px-3 py-2 rounded-xl bg-red-50 border border-red-100 text-red-400 hover:text-red-600 active:scale-90 flex items-center gap-1 text-[10px] font-black uppercase transition">
@@ -351,7 +351,7 @@
                 <div class="flex items-center justify-between px-4">
                     <button onclick="adjustQty(-1)" class="w-14 h-14 rounded-full bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-2xl font-black shadow-sm btn-haptic hover:text-blue-600 hover:border-blue-200"><i class="fa-solid fa-minus"></i></button>
                     
-                    <input type="number" id="modal-qty" value="1" class="w-24 text-center text-5xl font-black brand-font text-blue-600 bg-transparent py-0 focus:outline-none" style="caret-color: transparent;">
+                    <input type="number" id="modal-qty" value="1" step="any" class="w-24 text-center text-5xl font-black brand-font text-blue-600 bg-transparent py-0 focus:outline-none" style="caret-color: transparent;">
                     
                     <button onclick="adjustQty(1)" class="w-14 h-14 rounded-full bg-blue-600 text-white flex items-center justify-center text-2xl font-black shadow-lg shadow-blue-600/30 btn-haptic active:bg-blue-700"><i class="fa-solid fa-plus"></i></button>
                 </div>
@@ -678,7 +678,7 @@
         overlay.addEventListener('click', closeModal);
 
         function adjustQty(delta) { 
-            let val = parseInt(mQty.value) || 0; 
+            let val = parseFloat(mQty.value) || 0; 
             if(val + delta > 0) {
                 mQty.value = val + delta;
                 // Pequeña escala al input para dar feedback visual

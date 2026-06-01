@@ -294,7 +294,7 @@ def materiales_view(bitacora_id):
         if brigadas:
             bri_names = [b['val'] for b in brigadas]
             try:
-                stock_res = supabase.table('stock_brigadas').select('brigada, cod_material, nombre_material, stock_actual, stock_inicial').in_('brigada', bri_names).execute()
+                stock_res = supabase.table('stock_brigadas').select('brigada, cod_material, nombre_material, stock_actual, stock_inicial, nombre_comercial').in_('brigada', bri_names).execute()
                 for s in (stock_res.data or []):
                     key = s['brigada']
                     if key not in stock_brigadas:
@@ -1532,6 +1532,7 @@ def despacho_masivo():
         col_cant  = next((c for c in cols_upper if 'CANTIDAD' in c or 'CANT' in c), None)
         col_cont  = next((c for c in cols_upper if 'CONTRATA' in c or 'EMPRESA' in c), None)
         col_unid  = next((c for c in cols_upper if 'UNIDAD' in c or 'UNID' in c), None)
+        col_comercial = next((c for c in cols_upper if 'COMERCIAL' in c or 'COMUN' in c), None)
 
         if not col_cod or not col_bri or not col_cant:
             return jsonify({'error':
@@ -1632,6 +1633,13 @@ def despacho_masivo():
             # Siempre se guarda la contrata oficial de brigada_tabla
             contrata_val = contrata_oficial or contrata_excel
 
+            # Leer nombre comercial del Excel si existe
+            nombre_comercial = ''
+            if col_comercial:
+                raw_com = row.get(col_comercial, '')
+                if pd.notna(raw_com):
+                    nombre_comercial = str(raw_com).strip()
+
             nombre = nombre_map.get(cod, '')
             if not nombre:
                 nombre = f'AX-{cod}'
@@ -1654,13 +1662,16 @@ def despacho_masivo():
                     'nombre_material': nombre,
                     'updated_at':      now
                 }
+                if nombre_comercial:
+                    update_payload['nombre_comercial'] = nombre_comercial
+                
                 # Sólo actualizar contrata si viene en el Excel (no sobreescribir con vacío)
                 if contrata_val:
                     update_payload['contrata'] = contrata_val
 
                 supabase.table('stock_brigadas').update(update_payload).eq('id', item['id']).execute()
             else:
-                ops_insert.append({
+                insert_payload = {
                     'brigada':         bri,
                     'cod_material':    cod,
                     'nombre_material': nombre,
@@ -1669,7 +1680,11 @@ def despacho_masivo():
                     'stock_minimo':    0,
                     'contrata':        contrata_val,
                     'updated_at':      now
-                })
+                }
+                if nombre_comercial:
+                    insert_payload['nombre_comercial'] = nombre_comercial
+                
+                ops_insert.append(insert_payload)
 
             procesados += 1
 

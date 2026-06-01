@@ -442,17 +442,22 @@
                 if(ptc <= 20) { bar = 'bg-red-500'; txt = 'text-red-600'; ring = 'hover:border-red-300'; }
                 else if(ptc <= 40) { bar = 'bg-amber-400'; txt = 'text-amber-600'; ring = 'hover:border-amber-300'; }
                 const agotado = actual <= 0;
+                const nombreMostrado = i.nombre_comercial ? i.nombre_comercial : i.nombre_material;
+                const badgeOficial = i.nombre_comercial ? `<div class="text-[9px] text-slate-400 font-semibold mb-1 uppercase tracking-wide truncate" title="${i.nombre_material}">${i.nombre_material}</div>` : '';
+                
                 const itemObj = {
                     codigo: i.cod_material,
                     codigo_visual: (i.cod_material || '').replace(/^0+/, ''),
                     descripcion: i.nombre_material,
+                    nombre_comercial: i.nombre_comercial,
                     costo: 0, categoria: 'STOCK', subcategoria: '', origen: 'CICSA'
                 };
                 const json = encodeURIComponent(JSON.stringify(itemObj));
                 return `<div onclick="${agotado ? 'alert(\'⛔ Este material está agotado en tu stock.\')' : 'openModal(\'' + json + '\')'}"
                     class="bg-white border ${agotado ? 'border-red-200 opacity-60 cursor-not-allowed' : 'border-slate-200 cursor-pointer active:scale-[0.98] ' + ring} rounded-xl px-3 py-2.5 flex items-center gap-3 shadow-sm transition-all" style="min-height:56px;">
                     <div class="flex-1 min-w-0">
-                        <div class="stock-item-name text-xs font-bold text-slate-700">${i.nombre_material}</div>
+                        ${badgeOficial}
+                        <div class="stock-item-name text-xs font-bold text-slate-700">${nombreMostrado}</div>
                         <div class="flex items-center gap-2 mt-1">
                             <div class="h-1.5 w-20 bg-slate-100 rounded-full overflow-hidden shrink-0"><div class="h-full ${bar} rounded-full" style="width:${ptc}%"></div></div>
                             <span class="text-[10px] font-bold ${txt} shrink-0">${ptc.toFixed(0)}%</span>
@@ -502,6 +507,7 @@
             if(brigadaTieneStock()) {
                 const items = getBrigadaStock();
                 const matches = items.filter(i =>
+                    (i.nombre_comercial || '').toUpperCase().includes(q) ||
                     (i.nombre_material || '').toUpperCase().includes(q) ||
                     (i.cod_material || '').toUpperCase().includes(q)
                 );
@@ -544,10 +550,14 @@
                 if(ptc <= 20) { barColor = 'bg-red-500'; txtColor = 'text-red-600'; }
                 else if(ptc <= 40) { barColor = 'bg-amber-400'; txtColor = 'text-amber-600'; }
 
+                const nombreMostrado = i.nombre_comercial ? i.nombre_comercial : i.nombre_material;
+                const badgeOficial = i.nombre_comercial ? `<div class="text-[9px] text-slate-400 font-semibold mb-0.5 uppercase tracking-wide truncate" title="${i.nombre_material}">${i.nombre_material}</div>` : '';
+
                 const itemObj = {
                     codigo: i.cod_material,
                     codigo_visual: (i.cod_material || '').replace(/^0+/, ''),
                     descripcion: i.nombre_material,
+                    nombre_comercial: i.nombre_comercial,
                     costo: 0, categoria: 'STOCK', subcategoria: '', origen: 'CICSA'
                 };
                 const json = encodeURIComponent(JSON.stringify(itemObj));
@@ -564,7 +574,8 @@
                                 <span class="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">${(i.cod_material||'').replace(/^0+/,'')}</span>
                                 ${agotado ? '<span class="text-[9px] font-black px-1.5 py-0.5 rounded bg-red-100 text-red-600">AGOTADO</span>' : ''}
                             </div>
-                            <div class="stock-item-name font-black brand-font text-sm text-slate-800">${i.nombre_material}</div>
+                            ${badgeOficial}
+                            <div class="stock-item-name font-black brand-font text-sm text-slate-800">${nombreMostrado}</div>
                             <div class="flex items-center gap-2 mt-1.5">
                                 <div class="h-1.5 w-20 bg-slate-100 rounded-full overflow-hidden shrink-0"><div class="h-full ${barColor} rounded-full" style="width:${ptc}%"></div></div>
                                 <span class="text-[10px] font-bold ${txtColor} shrink-0">${ptc.toFixed(0)}%</span>
@@ -650,7 +661,7 @@
         function openModal(json) {
             currentItem = JSON.parse(decodeURIComponent(json));
             mCode.innerText = (currentItem.codigo_visual || currentItem.codigo).replace(/^0+/, '');
-            mDesc.innerText = currentItem.descripcion;
+            mDesc.innerText = currentItem.nombre_comercial ? currentItem.nombre_comercial : currentItem.descripcion;
             mQty.value = 1;
 
             const origen = (currentItem.origen || 'CLARO').toUpperCase();

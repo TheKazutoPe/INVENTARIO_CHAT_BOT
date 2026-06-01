@@ -49,9 +49,9 @@ except Exception as e:
 # helpdesk    → Soporte interno    → BLOQUEADO en este módulo
 # user_am     → Cliente Claro      → BLOQUEADO en este módulo
 
-ROLES_PERMITIDOS = ('admin', 'user')   # Únicos roles que pueden entrar al sistema
+ROLES_PERMITIDOS = ('admin', 'user', 'contrata')   # Únicos roles que pueden entrar al sistema
 ROLES_ADMIN      = ('admin',)           # Acceso exclusivo: exportación masiva de Excel
-ROLES_ALL        = ('admin', 'user')   # Acceso completo sin exportar
+ROLES_ALL        = ('admin', 'user', 'contrata')   # Acceso completo sin exportar
 
 def login_required(f):
     """Verifica que el usuario esté autenticado."""
@@ -154,9 +154,7 @@ def contrata_of(zone_map, brigada):
 def index():
     if 'user_email' in session:
         role = session.get('role', '')
-        if role == 'admin':
-            return redirect(url_for('reportes_view'))
-        if role == 'user':
+        if role in ('admin', 'user', 'contrata'):
             return redirect(url_for('reportes_view'))
     return redirect(url_for('login'))
 
@@ -392,9 +390,9 @@ def get_acumulados_data():
         if zona_filter:
             data = [r for r in data if str(r.get('zona_brigada', '')).upper() == zona_filter.upper()]
 
-        # Ocultar datos financieros para contratas (role='user')
+        # Ocultar datos financieros para contratas (role='user' o 'contrata')
         CAMPOS_FINANCIEROS = ('precio_unit', 'subtotal', 'total_soles', 'tc', 'moneda')
-        if session.get('role') == 'user':
+        if session.get('role') in ('user', 'contrata'):
             for r in data:
                 for campo in CAMPOS_FINANCIEROS:
                     r.pop(campo, None)

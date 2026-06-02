@@ -1718,6 +1718,60 @@ def despacho_masivo():
 # =====================================================================
 #  MONITOR DE COORDINADOR (VISTA DE PENDIENTES)
 # =====================================================================
+@app.route('/api/exportar-cumplimiento', methods=['POST'])
+@login_required
+def exportar_cumplimiento():
+    try:
+        req_data = request.json.get('data', [])
+        if not req_data:
+            return "No hay datos para exportar", 400
+        
+        rows = []
+        for b in req_data:
+            if b.get('tiene_material'):
+                status_txt = "Registrado"
+            elif b.get('tiene_sin_consumo'):
+                status_txt = "Sin Consumo"
+            else:
+                status_txt = "Pendiente"
+                
+            fecha = b.get('fecha_asignacion_bd')
+            if fecha:
+                try:
+                    fecha_fmt = datetime.datetime.fromisoformat(str(fecha).replace('Z', '')).strftime('%d/%m/%Y')
+                except:
+                    fecha_fmt = str(fecha)
+            else:
+                fecha_fmt = '—'
+                
+            rows.append({
+                'ESTADO REGISTRO': status_txt,
+                'INCIDENCIA / TICKET': b.get('identificador') or b.get('id'),
+                'ID BITACORA': b.get('id'),
+                'ZONA': b.get('zona_bd') or '—',
+                'CONTRATA': b.get('contrata_cicsa') or '—',
+                'BRIGADA': b.get('bri1_oficial') or '—',
+                'ASIGNACION': fecha_fmt,
+                'TIPO / ESTADO': b.get('estado_textual_bd') or '—'
+            })
+            
+        df = pd.DataFrame(rows)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Status de Cumplimiento')
+            
+        output.seek(0)
+        filename = f"Status_Cumplimiento_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        return send_file(output,
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                         as_attachment=True,
+                         download_name=filename)
+    except Exception as e:
+        print(f"Error exportar-cumplimiento: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+
 @app.route('/monitor')
 @login_required
 def monitor_view():

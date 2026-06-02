@@ -126,6 +126,9 @@
     .refresh-btn { height: 36px; width: 36px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.2); color: #818cf8; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; cursor: pointer; transition: all .2s; }
     .refresh-btn:hover { background: rgba(99,102,241,0.22); color: #a5b4fc; transform: rotate(45deg); }
 
+    .export-btn { height: 36px; width: 36px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.2); color: #34d399; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; transition: all .2s; }
+    .export-btn:hover { background: rgba(16,185,129,0.22); color: #6ee7b7; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.2); }
+
     .bd-mode-banner {
         display: none; align-items: center; gap: 8px; padding: 6px 14px;
         background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);
@@ -213,6 +216,11 @@
                 <!-- Refresh -->
                 <button class="refresh-btn" onclick="cargar()" title="Actualizar datos" style="flex-shrink:0; margin-top:14px;">
                     <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+                
+                <!-- Exportar -->
+                <button class="export-btn" id="btnExportar" onclick="exportarCumplimiento()" title="Exportar a Excel" style="flex-shrink:0; margin-top:14px;">
+                    <i class="fa-solid fa-file-excel"></i>
                 </button>
             </div>
 
@@ -561,6 +569,68 @@
         return `<tr><td colspan="8" style="padding:40px; text-align:center; color:#f87171; font-weight:700; font-size:12px;">
             <i class="fa-solid fa-triangle-exclamation" style="display:block; margin-bottom:8px; font-size:20px;"></i>Error de conexión
         </td></tr>`;
+    }
+
+    async function exportarCumplimiento() {
+        const statusF   = document.getElementById('filterStatus').value;
+        const contrataF = document.getElementById('filterContrata').value;
+        const brigadaF  = document.getElementById('filterBrigada').value;
+        const q         = document.getElementById('searchTable').value.toLowerCase();
+
+        let data = isBDSearchActive ? bdSearchData : allBitacoras;
+
+        if(statusF === 'pendiente')   data = data.filter(b => !b.tiene_material && !b.tiene_sin_consumo);
+        if(statusF === 'ok')          data = data.filter(b => b.tiene_material);
+        if(statusF === 'sin_consumo') data = data.filter(b => b.tiene_sin_consumo && !b.tiene_material);
+        if(contrataF !== 'all') data = data.filter(b => (b.contrata_cicsa||'').toUpperCase() === contrataF);
+        if(brigadaF  !== 'all') data = data.filter(b => (b.bri1_oficial||'').toUpperCase() === brigadaF);
+        if(!isBDSearchActive && q.length >= 2) data = data.filter(b => JSON.stringify(b).toLowerCase().includes(q));
+
+        if (!data || data.length === 0) {
+            alert("No hay datos para exportar con los filtros actuales.");
+            return;
+        }
+
+        const btn = document.getElementById('btnExportar');
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+
+        try {
+            const response = await fetch('/api/exportar-cumplimiento', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: data })
+            });
+            
+            if(response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                // Intentar recuperar el nombre del archivo del header Content-Disposition si es posible
+                let filename = 'Status_Cumplimiento.xlsx';
+                const disposition = response.headers.get('Content-Disposition');
+                if (disposition && disposition.indexOf('attachment') !== -1) {
+                    const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                    const matches = filenameRegex.exec(disposition);
+                    if (matches != null && matches[1]) filename = matches[1].replace(/['"]/g, '');
+                }
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } else {
+                alert("Error al exportar los datos.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error de red al intentar exportar.");
+        } finally {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
     }
 
     function buscar() { renderBitacoras(); }

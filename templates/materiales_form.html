@@ -283,7 +283,12 @@
                         <div class="flex flex-col items-end justify-between shrink-0 h-full ml-3">
                             <div class="text-right">
                                 <div class="font-black brand-font text-3xl text-slate-800 leading-none">{% if item.cant_material % 1 == 0 %}{{ item.cant_material | int }}{% else %}{{ item.cant_material }}{% endif %}</div>
-                                <div class="text-[9px] text-slate-400 font-bold uppercase">unid.</div>
+                                <div class="text-[9px] text-slate-400 font-bold uppercase">
+                                    {% if 'CINTA BANDIT' in (item.nombre_material|string|upper) or 'FLEJE' in (item.nombre_material|string|upper) %}
+                                    <span class="text-blue-500 mr-1">({{ (item.cant_material * 30) | int }}m)</span>
+                                    {% endif %}
+                                    unid.
+                                </div>
                             </div>
                             <button onclick="deleteItem({{ item.id }})" class="mt-3 min-h-[44px] px-3 py-2 rounded-xl bg-red-50 border border-red-100 text-red-400 hover:text-red-600 active:scale-90 flex items-center gap-1 text-[10px] font-black uppercase transition">
                                 <i class="fa-solid fa-trash-can"></i> Anular
@@ -788,6 +793,10 @@
             const origen = (item.origen_material || 'CLARO').toUpperCase();
             const isCicsa = origen.includes('CICSA');
 
+            const isConversor = (item.nombre_material || '').toUpperCase().includes('CINTA BANDIT') || (item.nombre_material || '').toUpperCase().includes('FLEJE');
+            const qtyHtml = isConversor ? `<span class="text-blue-500 mr-1">(${Math.round(item.cant_material * 30)}m)</span> unid.` : `unid.`;
+            const displayCant = item.cant_material % 1 === 0 ? item.cant_material : parseFloat(item.cant_material).toFixed(2);
+
             const div = document.createElement('div');
             div.id = `row-${item.id}`;
             div.className = 'card-material p-4 flex items-start justify-between new-item';
@@ -806,8 +815,8 @@
                 </div>
                 <div class="flex flex-col items-end justify-between shrink-0 ml-3">
                     <div class="text-right">
-                        <div class="font-black brand-font text-3xl text-slate-800 leading-none">${parseInt(item.cant_material)}</div>
-                        <div class="text-[9px] text-slate-400 font-bold uppercase">unid.</div>
+                        <div class="font-black brand-font text-3xl text-slate-800 leading-none">${displayCant}</div>
+                        <div class="text-[9px] text-slate-400 font-bold uppercase">${qtyHtml}</div>
                     </div>
                     <button onclick="deleteItem(${item.id})" class="mt-3 min-h-[44px] px-3 py-2 rounded-xl bg-red-50 border border-red-100 text-red-400 active:scale-90 flex items-center gap-1 text-[10px] font-black uppercase">
                         <i class="fa-solid fa-trash-can"></i> Anular

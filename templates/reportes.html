@@ -369,6 +369,9 @@
             // Subtle separator when date changes
             const newDate  = fecha !== prevDate;
             const newBri   = r.brigada_responsable !== prevBri;
+            const isConversor = (r.nombre_material || '').toUpperCase().includes('CINTA BANDIT') || (r.nombre_material || '').toUpperCase().includes('FLEJE');
+            const qtyEquiv = isConversor ? `<div class="text-blue-400 text-[10px] font-bold mt-0.5">(${Math.round(cant * 30)}m)</div>` : '';
+
             prevDate = fecha; prevBri = r.brigada_responsable;
 
             return `<tr class="tr-row${newDate ? ' border-t-2 border-indigo-500/10' : ''}">
@@ -391,8 +394,9 @@
                     <div class="text-[11px] font-semibold text-slate-200 truncate max-w-[260px]" title="${r.nombre_material}">${r.nombre_material}</div>
                 </td>
                 <td class="px-4 py-2.5 text-right">
-                    <span class="text-lg font-black text-white brand-font">${cant.toLocaleString('es-PE',{maximumFractionDigits:1})}</span>
+                    <span class="text-lg font-black text-white brand-font">${cant.toLocaleString('es-PE',{maximumFractionDigits:2})}</span>
                     <span class="text-[9px] text-slate-600 ml-0.5">u</span>
+                    ${qtyEquiv}
                 </td>
             </tr>`;
         }).join('');

@@ -958,6 +958,15 @@ def save_single():
         cant = float(d['cant'])
         price = float(d['item']['costo'] or 0)
 
+        nombre_mat = (d['item'].get('descripcion') or '').upper()
+        cant_ingresada = float(d['cant'])
+        
+        factor_conversion = 1.0
+        if "CINTA BANDIT" in nombre_mat or "FLEJE" in nombre_mat:
+            factor_conversion = 30.0
+            
+        cant = cant_ingresada / factor_conversion
+
         row = {
             'bitacora_id': str(d['bid']),
             'brigada_responsable': d['bri'],

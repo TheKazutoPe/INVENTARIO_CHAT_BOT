@@ -962,7 +962,7 @@ def save_single():
         cant_ingresada = float(d['cant'])
         
         factor_conversion = 1.0
-        if ("CINTA BANDIT" in nombre_mat or "FLEJE" in nombre_mat) and "HEBILLA" not in nombre_mat:
+        if ("CINTA BANDIT" in nombre_mat or "FLEJE" in nombre_mat) and "HEBILLA" not in nombre_mat and "PARA FLEJE" not in nombre_mat:
             factor_conversion = 30.0
             
         cant = cant_ingresada / factor_conversion

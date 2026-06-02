@@ -369,7 +369,7 @@
             // Subtle separator when date changes
             const newDate  = fecha !== prevDate;
             const newBri   = r.brigada_responsable !== prevBri;
-            const isConversor = ((r.nombre_material || '').toUpperCase().includes('CINTA BANDIT') || (r.nombre_material || '').toUpperCase().includes('FLEJE')) && !(r.nombre_material || '').toUpperCase().includes('HEBILLA');
+            const isConversor = ((r.nombre_material || '').toUpperCase().includes('CINTA BANDIT') || (r.nombre_material || '').toUpperCase().includes('FLEJE')) && !(r.nombre_material || '').toUpperCase().includes('HEBILLA') && !(r.nombre_material || '').toUpperCase().includes('PARA FLEJE');
             const qtyEquiv = isConversor ? `<div class="text-blue-400 text-[10px] font-bold mt-0.5">(${Math.round(cant * 30)}m)</div>` : '';
 
             prevDate = fecha; prevBri = r.brigada_responsable;

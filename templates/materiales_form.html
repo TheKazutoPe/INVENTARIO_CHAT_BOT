@@ -284,7 +284,7 @@
                             <div class="text-right">
                                 <div class="font-black brand-font text-3xl text-slate-800 leading-none">{% if item.cant_material % 1 == 0 %}{{ item.cant_material | int }}{% else %}{{ item.cant_material }}{% endif %}</div>
                                 <div class="text-[9px] text-slate-400 font-bold uppercase">
-                                    {% if 'CINTA BANDIT' in (item.nombre_material|string|upper) or 'FLEJE' in (item.nombre_material|string|upper) %}
+                                    {% if ('CINTA BANDIT' in (item.nombre_material|string|upper) or 'FLEJE' in (item.nombre_material|string|upper)) and 'HEBILLA' not in (item.nombre_material|string|upper) %}
                                     <span class="text-blue-500 mr-1">({{ (item.cant_material * 30) | int }}m)</span>
                                     {% endif %}
                                     unid.
@@ -793,7 +793,7 @@
             const origen = (item.origen_material || 'CLARO').toUpperCase();
             const isCicsa = origen.includes('CICSA');
 
-            const isConversor = (item.nombre_material || '').toUpperCase().includes('CINTA BANDIT') || (item.nombre_material || '').toUpperCase().includes('FLEJE');
+            const isConversor = ((item.nombre_material || '').toUpperCase().includes('CINTA BANDIT') || (item.nombre_material || '').toUpperCase().includes('FLEJE')) && !(item.nombre_material || '').toUpperCase().includes('HEBILLA');
             const qtyHtml = isConversor ? `<span class="text-blue-500 mr-1">(${Math.round(item.cant_material * 30)}m)</span> unid.` : `unid.`;
             const displayCant = item.cant_material % 1 === 0 ? item.cant_material : parseFloat(item.cant_material).toFixed(2);
 

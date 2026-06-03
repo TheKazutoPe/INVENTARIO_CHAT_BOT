@@ -225,6 +225,20 @@
             </div>
         </div>
 
+        <!-- Stock disponible (inmediatamente después de seleccionar brigada) -->
+        <div id="stock-brigada-panel" class="mb-6 hidden">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-[11px] font-black text-slate-400 tracking-widest uppercase flex items-center gap-2">
+                    <div class="w-2 h-2 bg-indigo-500 rounded-full"></div> Stock Disponible tu Brigada
+                </h3>
+                <button id="stock-toggle-btn" onclick="toggleStockPanel()" class="text-slate-400 text-xs flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-lg hover:bg-slate-200 transition">
+                    <i class="fa-solid fa-chevron-up" id="stock-toggle-icon"></i>
+                    <span id="stock-toggle-text">Ocultar</span>
+                </button>
+            </div>
+            <div id="stock-brigada-list" class="space-y-2"></div>
+        </div>
+
         <!-- Buscador mejorado para móvil -->
         <div class="relative z-20">
             <input type="text" id="search" inputmode="search" class="search-input w-full pl-14 pr-12 py-5 bg-white rounded-2xl text-xl font-bold brand-font text-slate-800 placeholder:text-slate-400 placeholder:font-medium placeholder:text-base outline-none z-20 relative" placeholder="Nombre o código AX / SAP..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
@@ -240,17 +254,6 @@
                 <h3 class="font-bold text-slate-500">El catálogo está listo</h3>
                 <p class="text-xs text-slate-400 mt-1">Busca cualquier material para registrar tu visita.</p>
             </div>
-        </div>
-
-        <!-- Stock disponible (si brigada seleccionada) -->
-        <div id="stock-brigada-panel" class="mb-6 hidden">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="text-[11px] font-black text-slate-400 tracking-widest uppercase flex items-center gap-2">
-                    <div class="w-2 h-2 bg-indigo-500 rounded-full"></div> Stock Disponible tu Brigada
-                </h3>
-                <button onclick="document.getElementById('stock-brigada-panel').classList.add('hidden')" class="text-slate-400 text-xs"><i class="fa-solid fa-times"></i></button>
-            </div>
-            <div id="stock-brigada-list" class="space-y-2"></div>
         </div>
 
         <!-- Historial en vivo -->
@@ -418,6 +421,24 @@
                 document.getElementById('btn-sin-consumo-bar').classList.remove('hidden');
             }
         }
+
+        function toggleStockPanel() {
+            const list = document.getElementById('stock-brigada-list');
+            const icon = document.getElementById('stock-toggle-icon');
+            const text = document.getElementById('stock-toggle-text');
+            if (list.style.display === 'none') {
+                list.style.display = '';
+                icon.className = 'fa-solid fa-chevron-up';
+                text.innerText = 'Ocultar';
+            } else {
+                list.style.display = 'none';
+                icon.className = 'fa-solid fa-chevron-down';
+                const bri = brigadaSelect.value;
+                const count = (stockData[bri] || []).length;
+                text.innerText = `Mostrar (${count})`;
+            }
+        }
+
         function persistBrigada() {
             const bri = brigadaSelect.value;
             sessionStorage.setItem(`bri_${bitacoraId}`, bri);

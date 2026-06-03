@@ -256,21 +256,22 @@ def materiales_view(bitacora_id):
 
         brigadas = []
         INVALIDOS = {'', 'NONE', 'NULL', 'NAN', 'NO TIENE', '-', '—', '0', 'NINGUNO'}
-        seen_vals = set()
-        bd_names_to_resolve = []  # solo los _bd que no tengan _oficial
+        seen_vals = set()          # almacena en UPPER para deduplicar sin importar case
+        bd_names_to_resolve = []   # solo los _bd que no tengan _oficial
 
         for i in range(1, 6):
             oficial = (bitacora.get(f'bri{i}_oficial') or '').strip()
             if oficial and oficial.upper() not in INVALIDOS:
-                if oficial not in seen_vals:
+                key_up = oficial.upper()
+                if key_up not in seen_vals:
                     brigadas.append({'val': oficial, 'lbl': oficial})
-                    seen_vals.add(oficial)
+                    seen_vals.add(key_up)
             else:
                 # Sin nombre oficial → intentar con bri{i}_bd
                 bd_name = (bitacora.get(f'bri{i}_bd') or '').strip()
-                if bd_name and bd_name.upper() not in INVALIDOS and bd_name not in seen_vals:
+                if bd_name and bd_name.upper() not in INVALIDOS and bd_name.upper() not in seen_vals:
                     bd_names_to_resolve.append(bd_name)
-                    seen_vals.add(bd_name)
+                    seen_vals.add(bd_name.upper())
 
         # Resolver los _bd pendientes vía brigada_tabla
         if bd_names_to_resolve:
@@ -279,9 +280,10 @@ def materiales_view(bitacora_id):
                 mapping = {x['name_brigada_bd']: x['brigada_main'] for x in map_res.data}
                 for bd_name in bd_names_to_resolve:
                     short = mapping.get(bd_name, bd_name)
-                    if short not in seen_vals:
+                    key_up = short.upper()
+                    if key_up not in seen_vals:
                         brigadas.append({'val': short, 'lbl': short})
-                        seen_vals.add(short)
+                        seen_vals.add(key_up)
                     else:
                         # El _bd resolvió al mismo nombre oficial que ya existe → skip
                         pass
@@ -289,19 +291,46 @@ def materiales_view(bitacora_id):
                 for n in bd_names_to_resolve:
                     brigadas.append({'val': n, 'lbl': n})
 
-        # Obtener stock disponible por brigada para mostrar advertencias
+        # ─── Obtener stock disponible por brigada ────────────────────────
+        # stock_brigadas guarda los nombres en UPPER (desde despachar_stock),
+        # pero las brigadas del ticket pueden venir en case mixto.
+        # Estrategia: consultar con ambas variantes (original + UPPER)
+        # y mapear los resultados al nombre de brigada que usa el dropdown.
         stock_brigadas = {}
         if brigadas:
             bri_names = [b['val'] for b in brigadas]
+            # Construir lista de búsqueda: incluir tanto el original como UPPER
+            bri_search = list(set(bri_names + [n.upper() for n in bri_names]))
+
+            print(f"🔍 [Bitácora {bitacora_id}] Brigadas del ticket: {bri_names}")
+            print(f"🔍 [Bitácora {bitacora_id}] Buscando stock con: {bri_search}")
+
             try:
-                stock_res = supabase.table('stock_brigadas').select('brigada, cod_material, nombre_material, stock_actual, stock_inicial, nombre_comercial').in_('brigada', bri_names).execute()
+                stock_res = supabase.table('stock_brigadas').select(
+                    'brigada, cod_material, nombre_material, stock_actual, stock_inicial, nombre_comercial'
+                ).in_('brigada', bri_search).execute()
+
+                # Crear un mapa UPPER → nombre real del dropdown
+                upper_to_display = {}
+                for n in bri_names:
+                    upper_to_display[n.upper()] = n
+
+                found_brigadas_in_stock = set()
                 for s in (stock_res.data or []):
-                    key = s['brigada']
-                    if key not in stock_brigadas:
-                        stock_brigadas[key] = []
-                    stock_brigadas[key].append(s)
-            except:
-                pass
+                    raw_bri = s['brigada']
+                    found_brigadas_in_stock.add(raw_bri)
+                    # Mapear al nombre que usa el dropdown del técnico
+                    display_key = upper_to_display.get(raw_bri.upper(), raw_bri)
+                    if display_key not in stock_brigadas:
+                        stock_brigadas[display_key] = []
+                    stock_brigadas[display_key].append(s)
+
+                total_items = sum(len(v) for v in stock_brigadas.values())
+                print(f"✅ [Bitácora {bitacora_id}] Stock encontrado: {total_items} materiales para brigadas {list(found_brigadas_in_stock) if found_brigadas_in_stock else 'NINGUNA'}")
+                if not stock_res.data:
+                    print(f"⚠️  [Bitácora {bitacora_id}] NO se encontró stock. Verificar que las brigadas {bri_search} existan en stock_brigadas.")
+            except Exception as stock_err:
+                print(f"❌ [Bitácora {bitacora_id}] Error cargando stock brigadas: {stock_err}")
 
         # Detectar si ya existe una marca de sin consumo
         historial_visible = [h for h in historial if h.get('cod_material') != 'SIN_CONSUMO']
@@ -320,6 +349,87 @@ def materiales_view(bitacora_id):
     except Exception as e:
         print(e)
         return f"Error servidor: {e}", 500
+
+
+@app.route('/api/debug-stock/<bitacora_id>')
+@login_required
+def debug_stock(bitacora_id):
+    """
+    Diagnóstico: muestra qué brigadas resuelve una bitácora y qué stock encuentra.
+    Solo admin. Usar para depurar "el técnico no ve stock".
+    """
+    if session.get('role') not in ROLES_ADMIN:
+        return jsonify({'error': 'Solo admin'}), 403
+
+    try:
+        INVALIDOS = {'', 'NONE', 'NULL', 'NAN', 'NO TIENE', '-', '—', '0', 'NINGUNO'}
+        res = supabase.table('bitacoras').select("*").eq('id', int(bitacora_id)).execute()
+        if not res.data:
+            return jsonify({'error': 'Bitácora no encontrada'}), 404
+        bitacora = res.data[0]
+
+        # Recopilar nombres crudos de brigada
+        raw_info = {}
+        for i in range(1, 6):
+            oficial = (bitacora.get(f'bri{i}_oficial') or '').strip()
+            bd = (bitacora.get(f'bri{i}_bd') or '').strip()
+            if oficial or bd:
+                raw_info[f'bri{i}'] = {'oficial': oficial, 'bd': bd}
+
+        # Resolver nombres
+        brigadas_resolved = []
+        seen = set()
+        bd_to_resolve = []
+        for i in range(1, 6):
+            oficial = (bitacora.get(f'bri{i}_oficial') or '').strip()
+            if oficial and oficial.upper() not in INVALIDOS:
+                if oficial.upper() not in seen:
+                    brigadas_resolved.append(oficial)
+                    seen.add(oficial.upper())
+            else:
+                bd_name = (bitacora.get(f'bri{i}_bd') or '').strip()
+                if bd_name and bd_name.upper() not in INVALIDOS and bd_name.upper() not in seen:
+                    bd_to_resolve.append(bd_name)
+                    seen.add(bd_name.upper())
+
+        mapping_info = {}
+        if bd_to_resolve:
+            map_res = supabase.table('brigada_tabla').select('name_brigada_bd, brigada_main').in_('name_brigada_bd', bd_to_resolve).execute()
+            mapping_info = {x['name_brigada_bd']: x['brigada_main'] for x in map_res.data}
+            for bd_name in bd_to_resolve:
+                resolved = mapping_info.get(bd_name, bd_name)
+                if resolved.upper() not in seen:
+                    brigadas_resolved.append(resolved)
+                    seen.add(resolved.upper())
+
+        # Buscar en stock_brigadas
+        bri_search = list(set(brigadas_resolved + [n.upper() for n in brigadas_resolved]))
+        stock_found = {}
+        stock_all = []
+        if bri_search:
+            stock_res = supabase.table('stock_brigadas').select(
+                'brigada, cod_material, nombre_material, stock_actual, stock_inicial'
+            ).in_('brigada', bri_search).execute()
+            stock_all = stock_res.data or []
+            for s in stock_all:
+                bri = s['brigada']
+                if bri not in stock_found:
+                    stock_found[bri] = 0
+                stock_found[bri] += 1
+
+        return jsonify({
+            'bitacora_id': bitacora_id,
+            'campos_brigada_crudos': raw_info,
+            'brigadas_resueltas_dropdown': brigadas_resolved,
+            'bd_names_resueltos_via_tabla': mapping_info,
+            'busqueda_stock_con': bri_search,
+            'stock_encontrado_por_brigada': stock_found,
+            'total_items_stock': len(stock_all),
+            'detalle_stock': stock_all[:10],
+            'diagnostico': '✅ Stock encontrado' if stock_all else '⚠️ NO se encontró stock para estas brigadas'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # =====================================================================
@@ -489,7 +599,7 @@ def bitacoras_pendientes():
         dias = request.args.get('dias')
 
         query = supabase.table('bitacoras') \
-            .select('id, codigo_bd, nroincidencia_bd, nrotas_bd, nrosot_bd, zona_bd, bri1_oficial, contrata_cicsa, fecha_asignacion_bd, estado_textual_bd, titulo_bd')
+            .select('id, codigo_bd, nroincidencia_bd, nrotas_bd, nrosot_bd, zona_bd, contrata_cicsa, fecha_asignacion_bd, estado_textual_bd, titulo_bd, bri1_oficial, bri1_bd, bri2_oficial, bri2_bd, bri3_oficial, bri3_bd, bri4_oficial, bri4_bd, bri5_oficial, bri5_bd')
 
         if start_date:
             query = query.gte('fecha_asignacion_bd', f"{start_date}T00:00:00")
@@ -507,27 +617,104 @@ def bitacoras_pendientes():
         bitacoras = res.data or []
 
         if bitacoras:
+            # Precargar mapeo de brigadas
+            mapping = {}
+            try:
+                map_res = supabase.table('brigada_tabla').select('name_brigada_bd, brigada_main').execute()
+                mapping = {x['name_brigada_bd']: x['brigada_main'] for x in (map_res.data or [])}
+            except:
+                pass
+
+            INVALIDOS = {'', 'NONE', 'NULL', 'NAN', 'NO TIENE', '-', '—', '0', 'NINGUNO'}
+
             bids = [str(b['id']) for b in bitacoras]
             mat_res = supabase.table(Config.ACUMULADO_TABLE) \
-                .select('bitacora_id, cod_material') \
+                .select('bitacora_id, cod_material, brigada_responsable') \
                 .in_('bitacora_id', bids).execute()
 
-            # Separar ids con consumo real vs con marca sin_consumo
-            ids_con_material  = set()
-            ids_sin_consumo   = set()
+            # Agrupar registros por bitacora y brigada
+            # Estructura: { "bid": { "BRIGADA_UPPER": { material: bool, sin_consumo: bool } } }
+            registros = {}
             for r in (mat_res.data or []):
                 bid = str(r['bitacora_id'])
-                if r.get('cod_material') == 'SIN_CONSUMO':
-                    ids_sin_consumo.add(bid)
+                bri = (r.get('brigada_responsable') or '').strip().upper()
+                cod = r.get('cod_material')
+                if bid not in registros:
+                    registros[bid] = {}
+                if bri not in registros[bid]:
+                    registros[bid][bri] = {'material': False, 'sin_consumo': False}
+                
+                if cod == 'SIN_CONSUMO':
+                    registros[bid][bri]['sin_consumo'] = True
                 else:
-                    ids_con_material.add(bid)
+                    registros[bid][bri]['material'] = True
 
             resultado = []
             for b in bitacoras:
                 bid = str(b['id'])
-                b['tiene_material']    = bid in ids_con_material
-                b['tiene_sin_consumo'] = bid in ids_sin_consumo
-                b['identificador']     = get_identifier(b)
+                
+                # 1. Resolver todas las brigadas asignadas a esta bitácora
+                brigadas_resueltas = []
+                seen_vals = set()
+                bd_names_to_resolve = []
+
+                for i in range(1, 6):
+                    oficial = (b.get(f'bri{i}_oficial') or '').strip()
+                    if oficial and oficial.upper() not in INVALIDOS:
+                        if oficial.upper() not in seen_vals:
+                            brigadas_resueltas.append(oficial)
+                            seen_vals.add(oficial.upper())
+                    else:
+                        bd_name = (b.get(f'bri{i}_bd') or '').strip()
+                        if bd_name and bd_name.upper() not in INVALIDOS and bd_name.upper() not in seen_vals:
+                            bd_names_to_resolve.append(bd_name)
+                            seen_vals.add(bd_name.upper())
+
+                for bd_name in bd_names_to_resolve:
+                    short = mapping.get(bd_name, bd_name)
+                    if short.upper() not in seen_vals:
+                        brigadas_resueltas.append(short)
+                        seen_vals.add(short.upper())
+
+                # 2. Evaluar estado por brigada
+                brigadas_status = []
+                b_registros = registros.get(bid, {})
+                
+                tiene_material_global = False
+                tiene_sin_consumo_global = False
+                all_ok = True if brigadas_resueltas else False
+
+                for bri_name in brigadas_resueltas:
+                    bri_up = bri_name.upper()
+                    st = b_registros.get(bri_up, {'material': False, 'sin_consumo': False})
+                    
+                    if st['material']:
+                        estado = 'ok'
+                        tiene_material_global = True
+                    elif st['sin_consumo']:
+                        estado = 'sin_consumo'
+                        tiene_sin_consumo_global = True
+                    else:
+                        estado = 'pendiente'
+                        all_ok = False
+                        
+                    brigadas_status.append({
+                        'nombre': bri_name,
+                        'estado': estado
+                    })
+
+                b['brigadas_status'] = brigadas_status
+                # Mantenemos las variables globales para compatibilidad de KPIs
+                b['tiene_material'] = tiene_material_global
+                b['tiene_sin_consumo'] = tiene_sin_consumo_global
+                b['all_brigadas_ok'] = all_ok
+                b['identificador'] = get_identifier(b)
+                
+                # Limpiar campos pesados/innecesarios
+                for i in range(1, 6):
+                    b.pop(f'bri{i}_bd', None)
+                    if i > 1: b.pop(f'bri{i}_oficial', None)
+
                 resultado.append(b)
 
             return jsonify(resultado)
@@ -1020,11 +1207,13 @@ def save_single():
 
         final_res = supabase.table(Config.ACUMULADO_TABLE).insert([row]).execute()
 
-        # Descontar stock de brigada
+        # Descontar stock de brigada (intentar case exacto y luego UPPER)
         try:
             bri = d['bri']
             cod = d['item'].get('codigo')
             stock_res = supabase.table('stock_brigadas').select('id, stock_actual').eq('brigada', bri).eq('cod_material', cod).execute()
+            if not stock_res.data and bri != bri.upper():
+                stock_res = supabase.table('stock_brigadas').select('id, stock_actual').eq('brigada', bri.upper()).eq('cod_material', cod).execute()
             if stock_res.data:
                 item_stock = stock_res.data[0]
                 nuevo_stock = item_stock['stock_actual'] - cant
@@ -1174,6 +1363,8 @@ def delete_item():
                 cant = float(itm.get('cant_material', 0))
                 subtotal_devuelto = float(itm.get('subtotal', 0))
                 stock_res = supabase.table('stock_brigadas').select('id, stock_actual').eq('brigada', bri).eq('cod_material', cod).execute()
+                if not stock_res.data and bri and bri != bri.upper():
+                    stock_res = supabase.table('stock_brigadas').select('id, stock_actual').eq('brigada', bri.upper()).eq('cod_material', cod).execute()
                 if stock_res.data:
                     old_stock = stock_res.data[0]
                     supabase.table('stock_brigadas').update({
@@ -1875,10 +2066,10 @@ def exportar_cumplimiento():
         
         rows = []
         for b in req_data:
-            if b.get('tiene_material'):
-                status_txt = "Registrado"
-            elif b.get('tiene_sin_consumo'):
-                status_txt = "Sin Consumo"
+            if b.get('all_brigadas_ok'):
+                status_txt = "Completado"
+            elif b.get('tiene_material') or b.get('tiene_sin_consumo'):
+                status_txt = "Parcial"
             else:
                 status_txt = "Pendiente"
                 
@@ -1890,6 +2081,19 @@ def exportar_cumplimiento():
                     fecha_fmt = str(fecha)
             else:
                 fecha_fmt = '—'
+
+            brigadas_txt = '—'
+            b_status = b.get('brigadas_status')
+            if b_status and isinstance(b_status, list) and len(b_status) > 0:
+                partes = []
+                for st in b_status:
+                    nombre = st.get('nombre', '')
+                    est = st.get('estado', '')
+                    est_str = 'Registrado' if est == 'ok' else 'Sin Consumo' if est == 'sin_consumo' else 'Pendiente'
+                    partes.append(f"{nombre} ({est_str})")
+                brigadas_txt = " | ".join(partes)
+            else:
+                brigadas_txt = b.get('bri1_oficial') or '—'
                 
             rows.append({
                 'ESTADO REGISTRO': status_txt,
@@ -1897,7 +2101,7 @@ def exportar_cumplimiento():
                 'ID BITACORA': b.get('id'),
                 'ZONA': b.get('zona_bd') or '—',
                 'CONTRATA': b.get('contrata_cicsa') or '—',
-                'BRIGADA': b.get('bri1_oficial') or '—',
+                'BRIGADAS ASIGNADAS': brigadas_txt,
                 'ASIGNACION': fecha_fmt,
                 'TIPO / ESTADO': b.get('estado_textual_bd') or '—'
             })

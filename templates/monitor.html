@@ -514,15 +514,37 @@
 
         let html = '';
         data.forEach(b => {
-            const badge = b.tiene_material
-                ? `<span class="badge badge-ok"><i class="fa-solid fa-check" style="font-size:8px;"></i>Registrado</span>`
-                : b.tiene_sin_consumo
-                    ? `<span class="badge badge-sc"><i class="fa-solid fa-ban" style="font-size:8px;"></i>Sin consumo</span>`
-                    : `<span class="badge badge-pend animate-pulse"><i class="fa-solid fa-circle-exclamation" style="font-size:8px;"></i>Pendiente</span>`;
+            let badge = '';
+            if (b.all_brigadas_ok) {
+                badge = `<span class="badge badge-ok"><i class="fa-solid fa-check-double" style="font-size:8px;"></i>Completado</span>`;
+            } else if (b.tiene_material || b.tiene_sin_consumo) {
+                badge = `<span class="badge" style="background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.2); color:#818cf8;"><i class="fa-solid fa-spinner" style="font-size:8px;"></i>Parcial</span>`;
+            } else {
+                badge = `<span class="badge badge-pend animate-pulse"><i class="fa-solid fa-circle-exclamation" style="font-size:8px;"></i>Pendiente</span>`;
+            }
 
             const fecha = b.fecha_asignacion_bd
                 ? new Date(b.fecha_asignacion_bd).toLocaleDateString('es-PE', {day:'2-digit', month:'short', year:'2-digit'})
                 : '—';
+
+            let brigadasHtml = '';
+            if (b.brigadas_status && b.brigadas_status.length > 0) {
+                brigadasHtml = '<div style="display:flex; flex-direction:column; gap:4px;">';
+                b.brigadas_status.forEach(st => {
+                    let cColor, icon, title;
+                    if(st.estado === 'ok') { cColor = '#34d399'; icon = 'fa-check-circle'; title = 'Material Registrado'; }
+                    else if(st.estado === 'sin_consumo') { cColor = '#94a3b8'; icon = 'fa-ban'; title = 'Sin consumo reportado'; }
+                    else { cColor = '#fbbf24'; icon = 'fa-clock'; title = 'Pendiente de registro'; }
+                    
+                    brigadasHtml += `<div style="display:flex; align-items:center; gap:6px;">
+                        <span class="chip">${st.nombre}</span>
+                        <i class="fa-solid ${icon}" style="color:${cColor}; font-size:10px;" title="${title}"></i>
+                    </div>`;
+                });
+                brigadasHtml += '</div>';
+            } else {
+                brigadasHtml = `<span class="chip">${b.bri1_oficial||'—'}</span>`;
+            }
 
             html += `<tr class="tr-row">
                 <td style="padding:10px 16px;">${badge}</td>
@@ -537,7 +559,7 @@
                     <span style="font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase;">${(b.contrata_cicsa||'—').substring(0,16)}</span>
                 </td>
                 <td style="padding:10px 16px;">
-                    <span class="chip">${b.bri1_oficial||'—'}</span>
+                    ${brigadasHtml}
                 </td>
                 <td style="padding:10px 16px; font-size:10px; color:#64748b; font-family:monospace;">${fecha}</td>
                 <td style="padding:10px 16px; font-size:10px; color:#475569; max-width:160px; overflow:hidden; text-overflow:ellipsis;">${(b.estado_textual_bd||'').substring(0,22)}</td>

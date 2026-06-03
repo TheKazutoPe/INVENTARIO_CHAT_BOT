@@ -268,7 +268,7 @@
             <div id="history-list" class="space-y-3">
                 {% if historial %}
                     {% for item in historial %}
-                    <div id="row-{{ item.id }}" class="card-material p-4 flex items-start justify-between active:scale-95">
+                    <div id="row-{{ item.id }}" class="history-item card-material p-4 flex items-start justify-between active:scale-95" data-brigada="{{ item.brigada_responsable | upper }}">
                         <div class="flex items-start gap-3 flex-1 overflow-hidden">
                             <div class="w-1.5 rounded-full mt-1 shrink-0 self-stretch {% if 'CICSA' in (item.origen_material or '') %}bg-blue-500{% else %}bg-red-400{% endif %}"></div>
                             <div class="flex-1 overflow-hidden">
@@ -444,10 +444,42 @@
             sessionStorage.setItem(`bri_${bitacoraId}`, bri);
             brigadaSelect.parentElement.classList.remove('ring-4', 'ring-red-200');
             mostrarStockBrigada(bri);
+            filterHistory(bri);
             // Mostrar botón sin consumo cuando hay brigada seleccionada
             const bar = document.getElementById('btn-sin-consumo-bar');
             if(bri) bar.classList.remove('hidden');
             else bar.classList.add('hidden');
+        }
+
+        function filterHistory(bri) {
+            if (!bri) return;
+            const briUp = bri.toUpperCase();
+            const items = document.querySelectorAll('.history-item');
+            let countVisible = 0;
+            items.forEach(el => {
+                if(el.dataset.brigada === briUp) {
+                    el.style.display = 'flex';
+                    countVisible++;
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+            
+            document.getElementById('history-count').innerText = countVisible;
+            
+            let emptyEl = document.getElementById('empty-history');
+            if (countVisible === 0) {
+                if (!emptyEl) {
+                    const list = document.getElementById('history-list');
+                    list.insertAdjacentHTML('beforeend', `<div id="empty-history" class="py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl">
+                        <div class="text-4xl mb-3">📦</div>
+                        <div class="font-bold text-slate-500 text-sm">Aún no hay materiales de tu brigada</div>
+                        <div class="text-xs text-slate-400 mt-1">Busca y registra tu consumo.</div>
+                    </div>`);
+                }
+            } else {
+                if (emptyEl) emptyEl.remove();
+            }
         }
 
         function mostrarStockBrigada(bri) {
@@ -787,11 +819,13 @@
                             row.style.transition = 'all 0.3s';
                             row.style.opacity = '0';
                             row.style.transform = 'scale(0.9)';
-                            setTimeout(() => row.remove(), 300);
+                            setTimeout(() => {
+                                row.remove();
+                                filterHistory(brigadaSelect.value);
+                            }, 300);
+                        } else {
+                            filterHistory(brigadaSelect.value);
                         }
-                        // Actualizar contador
-                        const countElem = document.getElementById('history-count');
-                        countElem.innerText = Math.max(0, parseInt(countElem.innerText) - 1);
                         
                         sessionCount = Math.max(0, sessionCount - 1);
                         updateSessionBar();
@@ -820,7 +854,8 @@
 
             const div = document.createElement('div');
             div.id = `row-${item.id}`;
-            div.className = 'card-material p-4 flex items-start justify-between new-item';
+            div.className = 'history-item card-material p-4 flex items-start justify-between new-item';
+            div.dataset.brigada = (item.brigada_responsable || '').toUpperCase();
             div.innerHTML = `
                 <div class="flex items-start gap-3 flex-1 overflow-hidden">
                     <div class="w-1.5 rounded-full mt-1 shrink-0 self-stretch ${isCicsa ? 'bg-blue-500' : 'bg-red-400'}" style="min-height:48px"></div>
@@ -845,9 +880,12 @@
                 </div>`;
             list.insertBefore(div, list.firstChild);
 
-            // Actualizar contador y barra de sesión
-            const countElem = document.getElementById('history-count');
-            countElem.innerText = parseInt(countElem.innerText) + 1;
+            // Filtramos para asegurar visibilidad y contar
+            if(brigadaSelect && brigadaSelect.value) {
+                filterHistory(brigadaSelect.value);
+            }
+
+            // Actualizar barra de sesión
             sessionCount++;
             updateSessionBar();
         }

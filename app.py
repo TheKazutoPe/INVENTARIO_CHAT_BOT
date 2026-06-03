@@ -1388,6 +1388,18 @@ def despachar_stock():
                 'contrata':        contrata,
                 'updated_at':      now
             }]).execute()
+            
+        # ── REGISTRAR EN HISTORIAL DE DESPACHOS ──
+        responsable = session.get('user', 'Sistema')
+        supabase.table('historial_despachos').insert([{
+            'brigada': bri,
+            'cod_material': cod,
+            'nombre_material': nombre,
+            'cantidad': cant,
+            'responsable': responsable,
+            'tipo': 'MANUAL',
+            'fecha': now
+        }]).execute()
 
         return jsonify({'ok': True})
     except Exception as e:
@@ -1409,6 +1421,57 @@ def ajustar_minimo():
             'updated_at':   datetime.datetime.now().isoformat()
         }).eq('id', item_id).execute()
         return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/kpi-consumo', methods=['GET'])
+@login_required
+def kpi_consumo():
+    try:
+        bri = request.args.get('brigada')
+        cod = request.args.get('cod_material')
+        
+        # 1. Traer consumos (salidas)
+        q_cons = supabase.table(Config.ACUMULADO_TABLE).select('fecha_guardado, brigada_responsable, cod_material, nombre_material, cant_material, bitacora_id')
+        if bri: q_cons = q_cons.eq('brigada_responsable', bri)
+        if cod: q_cons = q_cons.eq('cod_material', cod)
+        res_cons = q_cons.execute()
+        
+        # 2. Traer despachos (entradas)
+        q_desp = supabase.table('historial_despachos').select('fecha, brigada, cod_material, nombre_material, cantidad, responsable, tipo')
+        if bri: q_desp = q_desp.eq('brigada', bri)
+        if cod: q_desp = q_desp.eq('cod_material', cod)
+        res_desp = q_desp.execute()
+        
+        # Mapear a un formato unificado
+        eventos = []
+        for c in (res_cons.data or []):
+            eventos.append({
+                'fecha': c.get('fecha_guardado'),
+                'brigada': c.get('brigada_responsable'),
+                'cod_material': c.get('cod_material'),
+                'nombre_material': c.get('nombre_material'),
+                'cantidad': -abs(float(c.get('cant_material') or 0)),
+                'tipo': 'CONSUMO',
+                'responsable': f"Técnico (Bitácora {c.get('bitacora_id')})"
+            })
+            
+        for d in (res_desp.data or []):
+            eventos.append({
+                'fecha': d.get('fecha'),
+                'brigada': d.get('brigada'),
+                'cod_material': d.get('cod_material'),
+                'nombre_material': d.get('nombre_material'),
+                'cantidad': abs(float(d.get('cantidad') or 0)),
+                'tipo': f"DESPACHO {d.get('tipo', '')}",
+                'responsable': d.get('responsable')
+            })
+            
+        # Ordenar por fecha desc
+        eventos.sort(key=lambda x: (x['fecha'] or ''), reverse=True)
+        
+        return jsonify(eventos)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1650,10 +1713,13 @@ def despacho_masivo():
         stock_map = {(d['brigada'].upper(), d['cod_material']): d for d in (stock_res.data or [])}
 
         ops_insert         = []
+        ops_historial      = []
         procesados         = 0
         sin_nombre         = []
         brigadas_invalidas = []   # brigadas no halladas en brigada_tabla
         discrepancias_cont = []   # contrata en Excel difiere de la oficial en BD
+        
+        responsable_masivo = session.get('user', 'Sistema')
 
         for _, row in df.iterrows():
             bri  = str(row[col_bri]).upper().strip()
@@ -1741,12 +1807,29 @@ def despacho_masivo():
                     insert_payload['nombre_comercial'] = nombre_comercial
                 
                 ops_insert.append(insert_payload)
+                
+            ops_historial.append({
+                'brigada': bri,
+                'cod_material': cod,
+                'nombre_material': nombre,
+                'cantidad': cant,
+                'responsable': responsable_masivo,
+                'tipo': 'MASIVO',
+                'fecha': now
+            })
 
             procesados += 1
 
         if ops_insert:
             for i in range(0, len(ops_insert), 500):
                 supabase.table('stock_brigadas').insert(ops_insert[i:i+500]).execute()
+                
+        if ops_historial:
+            for i in range(0, len(ops_historial), 500):
+                try:
+                    supabase.table('historial_despachos').insert(ops_historial[i:i+500]).execute()
+                except Exception as hist_e:
+                    print(f"Error guardando historial despachos masivo: {hist_e}")
 
         # ── Construir respuesta estructurada ────────────────────────────
         sin_nombre_uniq    = list(dict.fromkeys(sin_nombre))

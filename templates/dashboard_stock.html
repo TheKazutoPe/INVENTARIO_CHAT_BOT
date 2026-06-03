@@ -240,9 +240,7 @@
                         <th class="th-cell px-4 py-3 text-center" style="min-width:130px;">Salud de Stock</th>
                         <th class="th-cell px-4 py-3 text-right">Mínimo</th>
                         <th class="th-cell px-4 py-3 text-right">Existencias</th>
-                        {% if role == 'admin' %}
                         <th class="th-cell px-4 py-3 text-center">Acciones</th>
-                        {% endif %}
                     </tr>
                 </thead>
                 <tbody id="stockTbody">
@@ -292,6 +290,48 @@
                     <span>Reemplazo físico (sobrescribir)</span>
                 </label>
                 <span class="text-[9px] text-slate-600"><i class="fa-solid fa-lock-open mr-1"></i>Procesamiento seguro en servidor</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ═══════════════════════════════════════════════════ #}
+{#  MODAL: KPI HISTORIAL                              #}
+{# ═══════════════════════════════════════════════════ #}
+<div id="modalKpi" class="fixed inset-0 bg-black/70 backdrop-blur-md hidden items-center justify-center z-50">
+    <div class="glass w-[96%] max-w-4xl" style="border-radius:20px; max-height:90vh; display:flex; flex-direction:column;">
+        <div class="border-b border-white/5 px-6 py-4 flex justify-between items-center shrink-0" style="background:rgba(10,17,35,0.5); border-radius:20px 20px 0 0;">
+            <div>
+                <h3 class="text-white font-black text-base brand-font"><i class="fa-solid fa-chart-line text-emerald-400 mr-2"></i>Métricas y Trazabilidad</h3>
+                <div class="text-[10px] text-slate-400 font-mono mt-1" id="kpiSubtitle"></div>
+            </div>
+            <button onclick="closeKpiModal()" class="text-slate-500 hover:text-white transition text-xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-6 overflow-y-auto cscroll flex-1 flex flex-col gap-6">
+            <!-- Gráfico -->
+            <div class="glass p-4 rounded-xl" style="height: 300px; position:relative;">
+                <canvas id="kpiChart"></canvas>
+            </div>
+            <!-- Tabla de Auditoría -->
+            <div class="glass rounded-xl overflow-hidden flex-1 flex flex-col">
+                <div class="px-4 py-2 border-b border-white/5 bg-slate-900/50">
+                    <h4 class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Historial de Eventos</h4>
+                </div>
+                <div class="overflow-y-auto cscroll flex-1" style="max-height: 250px;">
+                    <table class="w-full text-left text-xs whitespace-nowrap">
+                        <thead class="sticky top-0 bg-slate-900 shadow-md">
+                            <tr class="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                <th class="px-4 py-2 bg-slate-900">Fecha</th>
+                                <th class="px-4 py-2 bg-slate-900">Tipo</th>
+                                <th class="px-4 py-2 bg-slate-900 text-right">Cant.</th>
+                                <th class="px-4 py-2 bg-slate-900">Responsable</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kpiTableBody">
+                            <tr><td colspan="4" class="text-center text-slate-500 py-4 text-xs">Cargando datos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -574,9 +614,13 @@
             const safeBri  = (row.brigada||'').replace(/'/g,"&#39;");
             const safeName = (row.nombre_material||'').replace(/'/g,"&#39;");
 
-            const adminCells = IS_ADMIN ? `
-            <td class="px-4 py-2.5">
-                <div class="flex items-center justify-center gap-1">
+            const btnKpi = `
+                    <button onclick="openKpiModal('${safeBri}','${row.cod_material}','${safeName}')"
+                        class="w-7 h-7 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-400 hover:text-emerald-300 flex items-center justify-center transition" title="Ver Historial KPI">
+                        <i class="fa-solid fa-chart-line text-[10px]"></i>
+                    </button>`;
+                    
+            const adminBtns = IS_ADMIN ? `
                     <button onclick="openEditModal(${row.id},'${safeBri}','${safeName}',${actual},${minimo})"
                         class="w-7 h-7 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-400 hover:text-indigo-300 flex items-center justify-center transition" title="Editar">
                         <i class="fa-solid fa-pen-to-square text-[10px]"></i>
@@ -584,9 +628,15 @@
                     <button onclick="deleteStock(${row.id},'${safeBri}','${safeName}')"
                         class="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/25 text-red-500 hover:text-red-400 flex items-center justify-center transition" title="Eliminar">
                         <i class="fa-solid fa-trash-can text-[10px]"></i>
-                    </button>
+                    </button>` : '';
+
+            const actionCells = `
+            <td class="px-4 py-2.5">
+                <div class="flex items-center justify-center gap-1">
+                    ${btnKpi}
+                    ${adminBtns}
                 </div>
-            </td>` : '';
+            </td>`;
 
             html += `<tr class="tr-row fade-up">
                 <td class="px-4 py-2.5">
@@ -617,7 +667,7 @@
                     <span class="text-lg font-black ${txtColor} brand-font tracking-tighter">${actual.toLocaleString('es-PE',{maximumFractionDigits:1})}</span>
                     <span class="text-[9px] text-slate-600 ml-0.5">u</span>
                 </td>
-                ${adminCells}
+                ${actionCells}
             </tr>`;
         });
 
@@ -988,12 +1038,142 @@
     /* ── Global Escape handler ── */
     document.addEventListener('keydown', e => {
         if(e.key === 'Escape') {
-            closeEditModal(); closeDespachoModal(); closeImportModal();
+            closeEditModal(); closeDespachoModal(); closeImportModal(); closeKpiModal();
         }
     });
+
+    /* ══════════════════════════════════════
+       KPI HISTORIAL (Chart & Table)
+    ══════════════════════════════════════ */
+    let chartInstance = null;
+
+    async function openKpiModal(brigada, codMaterial, nombreMaterial) {
+        document.getElementById('modalKpi').classList.remove('hidden');
+        document.getElementById('modalKpi').classList.add('flex');
+        document.getElementById('kpiSubtitle').textContent = `[${brigada}] ${nombreMaterial} (AX-${codMaterial})`;
+        
+        document.getElementById('kpiTableBody').innerHTML = '<tr><td colspan="4" class="text-center text-slate-500 py-4 text-xs"><i class="fa-solid fa-spinner fa-spin text-indigo-500 mr-2"></i>Cargando datos...</td></tr>';
+        if (chartInstance) {
+            chartInstance.destroy();
+            chartInstance = null;
+        }
+
+        try {
+            const url = `/api/kpi-consumo?brigada=${encodeURIComponent(brigada)}&cod_material=${encodeURIComponent(codMaterial)}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            if (data.error) throw new Error(data.error);
+            
+            renderKpiTable(data);
+            renderKpiChart(data);
+        } catch(e) {
+            document.getElementById('kpiTableBody').innerHTML = `<tr><td colspan="4" class="text-center text-red-500 py-4 text-xs">❌ Error: ${e.message}</td></tr>`;
+        }
+    }
+
+    function closeKpiModal() {
+        document.getElementById('modalKpi').classList.remove('flex');
+        document.getElementById('modalKpi').classList.add('hidden');
+        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    }
+
+    function renderKpiTable(data) {
+        const tbody = document.getElementById('kpiTableBody');
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-slate-500 py-4 text-xs">No hay eventos registrados para este material.</td></tr>';
+            return;
+        }
+        
+        let html = '';
+        data.forEach(ev => {
+            const dateStr = new Date(ev.fecha).toLocaleString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+            const isDespacho = ev.cantidad > 0;
+            const cantClass = isDespacho ? 'text-emerald-400' : 'text-red-400';
+            const icon = isDespacho ? '<i class="fa-solid fa-arrow-trend-up mr-1"></i>' : '<i class="fa-solid fa-arrow-trend-down mr-1"></i>';
+            
+            html += `
+            <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                <td class="px-4 py-2 font-mono text-[10px] text-slate-400">${dateStr}</td>
+                <td class="px-4 py-2">
+                    <span class="text-[9px] font-black px-2 py-0.5 rounded-lg border ${isDespacho ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10' : 'border-red-500/30 text-red-300 bg-red-500/10'}">${ev.tipo}</span>
+                </td>
+                <td class="px-4 py-2 text-right font-black ${cantClass} brand-font">
+                    ${icon}${ev.cantidad > 0 ? '+' : ''}${ev.cantidad.toLocaleString('es-PE')}
+                </td>
+                <td class="px-4 py-2 text-[10px] text-slate-300">${ev.responsable || 'Sistema'}</td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    }
+
+    function renderKpiChart(data) {
+        if (!data || data.length === 0) return;
+        
+        // Group by day for the chart
+        const dailyData = {};
+        data.forEach(ev => {
+            const dateObj = new Date(ev.fecha);
+            const dayKey = dateObj.toLocaleDateString('es-PE'); // DD/MM/YYYY
+            
+            if (!dailyData[dayKey]) dailyData[dayKey] = { consumo: 0, despacho: 0 };
+            
+            if (ev.cantidad > 0) dailyData[dayKey].despacho += ev.cantidad;
+            else dailyData[dayKey].consumo += Math.abs(ev.cantidad);
+        });
+        
+        // Sort keys chronologically
+        const labels = Object.keys(dailyData).sort((a, b) => {
+            const [da, ma, ya] = a.split('/');
+            const [db, mb, yb] = b.split('/');
+            return new Date(ya, ma-1, da) - new Date(yb, mb-1, db);
+        });
+        
+        const consumoPoints = labels.map(l => dailyData[l].consumo);
+        const despachoPoints = labels.map(l => dailyData[l].despacho);
+        
+        const ctx = document.getElementById('kpiChart').getContext('2d');
+        chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Reabastecimiento (Despachos)',
+                        data: despachoPoints,
+                        backgroundColor: 'rgba(52, 211, 153, 0.8)',
+                        borderColor: 'rgb(16, 185, 129)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Consumo (Técnicos)',
+                        data: consumoPoints,
+                        backgroundColor: 'rgba(248, 113, 113, 0.8)',
+                        borderColor: 'rgb(239, 68, 68)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { stacked: false, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { stacked: false, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                },
+                plugins: {
+                    legend: { labels: { color: '#cbd5e1', font: { family: 'Outfit, sans-serif' } } },
+                    tooltip: { mode: 'index', intersect: false }
+                }
+            }
+        });
+    }
 
     /* ── Boot ── */
     loadData();
     setInterval(loadData, 60000); // auto-refresh every 60s
 </script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {% endblock %}

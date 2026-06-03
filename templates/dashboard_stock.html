@@ -99,9 +99,14 @@
                 <i class="fa-solid fa-arrow-right-arrow-left"></i> Despacho
             </button>
 
-            <!-- Import -->
-            <button onclick="openImportModal()" class="flex items-center gap-2 px-4 py-2 bg-emerald-700/60 hover:bg-emerald-600/70 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl transition">
-                <i class="fa-solid fa-file-import"></i> Importar Excel
+            <!-- Import Masivo -->
+            <button onclick="openImportModal('estandar')" class="flex items-center gap-2 px-4 py-2 bg-emerald-700/60 hover:bg-emerald-600/70 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl transition">
+                <i class="fa-solid fa-file-excel"></i> Cargar Matriz Masiva
+            </button>
+
+            <!-- Import Carso -->
+            <button onclick="openImportModal('carso')" class="flex items-center gap-2 px-4 py-2 bg-indigo-700/60 hover:bg-indigo-600/70 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl transition">
+                <i class="fa-solid fa-file-invoice"></i> Cargar Diario Embarque
             </button>
 
             {% if role == 'admin' %}
@@ -261,16 +266,16 @@
 <div id="modalImport" class="fixed inset-0 bg-black/70 backdrop-blur-md hidden items-center justify-center z-50">
     <div class="glass w-[96%] max-w-2xl" style="border-radius:20px; max-height:90vh; display:flex; flex-direction:column;">
         <div class="border-b border-white/5 px-6 py-4 flex justify-between items-center shrink-0" style="background:rgba(10,17,35,0.5); border-radius:20px 20px 0 0;">
-            <h3 class="text-white font-black text-base brand-font"><i class="fa-solid fa-file-import text-emerald-400 mr-2"></i>Importar Matriz de Despacho</h3>
+            <h3 id="importModalTitle" class="text-white font-black text-base brand-font"><i class="fa-solid fa-file-import text-emerald-400 mr-2"></i>Importar Matriz de Despacho</h3>
             <button onclick="closeImportModal()" class="text-slate-500 hover:text-white transition text-xl"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="p-6 overflow-y-auto cscroll">
             <div class="dropzone group relative mb-4 p-8 text-center cursor-pointer" id="dropzone" onclick="document.getElementById('fileInput').click()">
                 <input type="file" id="fileInput" accept=".xlsx,.xls" class="hidden" onchange="handleFile(this.files[0])">
                 <div class="relative z-10 pointer-events-none">
-                    <i class="fa-solid fa-file-excel text-4xl text-emerald-400 mb-3 group-hover:-translate-y-1 transition-transform duration-300 inline-block"></i>
-                    <h3 class="text-sm font-black text-emerald-400 mb-1">Arrastra tu archivo .xlsx aquí</h3>
-                    <p class="text-slate-500 text-xs">Columnas: <span class="text-emerald-300 font-bold">CODIGO AX · CONTRATA · BRIGADA · UNIDAD · CANTIDAD · NOMBRE COMERCIAL (Opcional)</span></p>
+                    <i id="importIcon" class="fa-solid fa-file-excel text-4xl text-emerald-400 mb-3 group-hover:-translate-y-1 transition-transform duration-300 inline-block"></i>
+                    <h3 id="importDropText" class="text-sm font-black text-emerald-400 mb-1">Arrastra tu archivo .xlsx aquí</h3>
+                    <p id="importModalDesc" class="text-slate-500 text-xs">Columnas: <span class="text-emerald-300 font-bold">CODIGO AX · CONTRATA · BRIGADA · UNIDAD · CANTIDAD · NOMBRE COMERCIAL (Opcional)</span></p>
                 </div>
                 <div id="uploading-ui" class="absolute inset-0 bg-slate-900/90 flex-col items-center justify-center z-20 hidden rounded-xl">
                     <i class="fa-solid fa-satellite-dish fa-spin text-3xl text-blue-500 mb-2"></i>
@@ -665,7 +670,31 @@
     /* ══════════════════════════════════════
        MODAL: IMPORT
     ══════════════════════════════════════ */
-    function openImportModal()  { const m=document.getElementById('modalImport'); m.classList.remove('hidden'); m.classList.add('flex'); }
+    let currentFormat = 'estandar';
+    function openImportModal(formato='estandar')  {
+        currentFormat = formato;
+        const m = document.getElementById('modalImport');
+        const title = document.getElementById('importModalTitle');
+        const desc = document.getElementById('importModalDesc');
+        const icon = document.getElementById('importIcon');
+        const txt = document.getElementById('importDropText');
+        
+        if (formato === 'carso') {
+            title.innerHTML = '<i class="fa-solid fa-file-invoice text-indigo-400 mr-2"></i>Cargar Diario de Embarque (Carso)';
+            desc.innerHTML = 'Formato con cabecera superior "CONTRATISTA / CUADRILLA"';
+            icon.className = 'fa-solid fa-file-invoice text-4xl text-indigo-400 mb-3 group-hover:-translate-y-1 transition-transform duration-300 inline-block';
+            txt.className = 'text-sm font-black text-indigo-400 mb-1';
+            txt.innerText = 'Arrastra el Diario de Embarque (.xlsx) aquí';
+        } else {
+            title.innerHTML = '<i class="fa-solid fa-file-excel text-emerald-400 mr-2"></i>Importar Matriz Masiva (Estándar)';
+            desc.innerHTML = 'Columnas: <span class="text-emerald-300 font-bold">CODIGO AX · CONTRATA · BRIGADA · UNIDAD · CANTIDAD</span>';
+            icon.className = 'fa-solid fa-file-excel text-4xl text-emerald-400 mb-3 group-hover:-translate-y-1 transition-transform duration-300 inline-block';
+            txt.className = 'text-sm font-black text-emerald-400 mb-1';
+            txt.innerText = 'Arrastra tu archivo .xlsx aquí';
+        }
+        
+        m.classList.remove('hidden'); m.classList.add('flex'); 
+    }
     function closeImportModal() { const m=document.getElementById('modalImport'); m.classList.add('hidden'); m.classList.remove('flex'); }
 
     const dz = document.getElementById('dropzone');
@@ -682,6 +711,7 @@
         const form = new FormData();
         form.append('file', file);
         form.append('modo', document.getElementById('modoReemplazo').checked ? 'reemplazar' : 'acumular');
+        form.append('tipo_formato', currentFormat);
         try {
             const r = await fetch('/api/despacho-masivo', { method:'POST', body:form });
             const d = await r.json();

@@ -1531,9 +1531,54 @@ def despacho_masivo():
         if file.filename == '':
             return jsonify({'error': 'Nombre de archivo vacío'}), 400
 
-        df = pd.read_excel(file, dtype=str)
+        file.seek(0)
+        df_raw = pd.read_excel(file, header=None, dtype=str)
+        
+        header_idx = 0
+        brigada_global = None
+        contrata_global = None
+        
+        for i, row in df_raw.iterrows():
+            row_vals = [str(v).upper().strip() for v in row if pd.notna(v)]
+            row_str = " ".join(row_vals)
+            
+            # Detectar metadata global (Formato CARSO u otros)
+            if "CONTRATISTA" in row_str or "CUADRILLA" in row_str:
+                for idx, val in enumerate(row):
+                    if pd.isna(val): continue
+                    val_str = str(val).upper().strip()
+                    if "CONTRATISTA" in val_str or "CUADRILLA" in val_str:
+                        # El valor suele estar a la derecha
+                        for j in range(idx+1, len(row)):
+                            if pd.notna(row[j]):
+                                next_val = str(row[j]).strip().upper()
+                                if '/' in next_val:
+                                    parts = next_val.split('/')
+                                    if len(parts) >= 2:
+                                        contrata_global = parts[0].strip()
+                                        brigada_global = parts[1].strip()
+                                break
+                        break
+
+            # Detectar fila de cabeceras (AX y CANTIDAD)
+            has_ax = any("AX" in v or "CÓDIGO" in v or "CODIGO" in v for v in row_vals)
+            has_cant = any("CANT" in v for v in row_vals)
+            if has_ax and has_cant:
+                header_idx = i
+                break
+
+        file.seek(0)
+        df = pd.read_excel(file, header=header_idx, dtype=str)
         cols_upper = [str(c).upper().strip() for c in df.columns]
         df.columns = cols_upper
+        
+        # Inyectar metadata extraída si no existe la columna en el header
+        if brigada_global and not any('BRIGADA' in c for c in cols_upper):
+            df['BRIGADA'] = brigada_global
+            cols_upper.append('BRIGADA')
+        if contrata_global and not any('CONTRATA' in c or 'EMPRESA' in c for c in cols_upper):
+            df['CONTRATA'] = contrata_global
+            cols_upper.append('CONTRATA')
 
         # ── Mapeo flexible de columnas ──────────────────────────────────
         col_cod   = next((c for c in cols_upper if 'AX' in c or ('COD' in c and 'CONTRATA' not in c)), None)

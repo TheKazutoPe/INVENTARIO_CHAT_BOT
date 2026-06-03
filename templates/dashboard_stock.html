@@ -94,6 +94,11 @@
                 {% endfor %}
             </select>
 
+            <!-- KPI Global -->
+            <button onclick="openKpiModal('GLOBAL', 'GLOBAL', 'Todos los Materiales')" class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl transition shadow-md shadow-emerald-900/30">
+                <i class="fa-solid fa-chart-area"></i> KPI Global
+            </button>
+
             <!-- Despacho -->
             <button onclick="openDespachoModal()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-md shadow-blue-900/30">
                 <i class="fa-solid fa-arrow-right-arrow-left"></i> Despacho
@@ -1050,7 +1055,12 @@
     async function openKpiModal(brigada, codMaterial, nombreMaterial) {
         document.getElementById('modalKpi').classList.remove('hidden');
         document.getElementById('modalKpi').classList.add('flex');
-        document.getElementById('kpiSubtitle').textContent = `[${brigada}] ${nombreMaterial} (AX-${codMaterial})`;
+        
+        if(brigada === 'GLOBAL') {
+            document.getElementById('kpiSubtitle').textContent = `Métricas consolidadas de todas las brigadas y materiales`;
+        } else {
+            document.getElementById('kpiSubtitle').textContent = `[${brigada}] ${nombreMaterial} (AX-${codMaterial})`;
+        }
         
         document.getElementById('kpiTableBody').innerHTML = '<tr><td colspan="4" class="text-center text-slate-500 py-4 text-xs"><i class="fa-solid fa-spinner fa-spin text-indigo-500 mr-2"></i>Cargando datos...</td></tr>';
         if (chartInstance) {
@@ -1059,7 +1069,11 @@
         }
 
         try {
-            const url = `/api/kpi-consumo?brigada=${encodeURIComponent(brigada)}&cod_material=${encodeURIComponent(codMaterial)}`;
+            let url = '/api/kpi-consumo';
+            if(brigada !== 'GLOBAL') {
+                url += `?brigada=${encodeURIComponent(brigada)}&cod_material=${encodeURIComponent(codMaterial)}`;
+            }
+            
             const res = await fetch(url);
             const data = await res.json();
             
@@ -1134,38 +1148,52 @@
         
         const ctx = document.getElementById('kpiChart').getContext('2d');
         chartInstance = new Chart(ctx, {
-            type: 'bar',
+            type: 'line',
             data: {
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Reabastecimiento (Despachos)',
+                        label: 'Reabastecimiento (Entradas)',
                         data: despachoPoints,
-                        backgroundColor: 'rgba(52, 211, 153, 0.8)',
-                        borderColor: 'rgb(16, 185, 129)',
-                        borderWidth: 1,
-                        borderRadius: 4
+                        backgroundColor: 'rgba(52, 211, 153, 0.2)',
+                        borderColor: 'rgb(52, 211, 153)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: 'rgb(52, 211, 153)'
                     },
                     {
-                        label: 'Consumo (Técnicos)',
+                        label: 'Consumo (Salidas)',
                         data: consumoPoints,
-                        backgroundColor: 'rgba(248, 113, 113, 0.8)',
-                        borderColor: 'rgb(239, 68, 68)',
-                        borderWidth: 1,
-                        borderRadius: 4
+                        backgroundColor: 'rgba(248, 113, 113, 0.2)',
+                        borderColor: 'rgb(248, 113, 113)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: 'rgb(248, 113, 113)'
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
                 scales: {
-                    x: { stacked: false, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                    y: { stacked: false, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                    x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
                 },
                 plugins: {
                     legend: { labels: { color: '#cbd5e1', font: { family: 'Outfit, sans-serif' } } },
-                    tooltip: { mode: 'index', intersect: false }
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        titleColor: '#fff',
+                        bodyColor: '#cbd5e1',
+                        borderColor: 'rgba(255,255,255,0.1)',
+                        borderWidth: 1
+                    }
                 }
             }
         });

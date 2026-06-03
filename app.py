@@ -333,6 +333,14 @@ def reportes_view():
                            role=session.get('role', ''))
 
 
+@app.route('/kpi-global')
+@login_required
+def kpi_global_view():
+    return render_template('kpi_global.html',
+                           user_name=session.get('user_name', ''),
+                           role=session.get('role', ''))
+
+
 @app.route('/api/acumulados-data', methods=['GET'])
 @login_required
 def get_acumulados_data():

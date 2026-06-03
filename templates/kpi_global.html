@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% block title %}KPI Almacén | SysMateriales{% endblock %}
+
+{% block content %}
+<div class="max-w-screen-2xl mx-auto px-5 py-5 fade-in">
+    
+    <!-- Cabecera -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+            <h1 class="text-2xl font-black text-white brand-font tracking-tight flex items-center gap-3">
+                <i class="fa-solid fa-chart-line text-emerald-400"></i>
+                Métricas Consolidadas del Almacén
+            </h1>
+            <p class="text-xs text-slate-400 mt-1 uppercase tracking-widest font-bold">Resumen Global de Reabastecimiento vs Consumo</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="fetchData()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border border-slate-700">
+                <i class="fa-solid fa-rotate"></i> Actualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- Tarjetas KPI -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <!-- Reabastecimiento -->
+        <div class="glass p-5 rounded-2xl border-t-2 border-t-emerald-500 relative overflow-hidden group">
+            <div class="absolute right-0 top-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-10 -mt-10 transition group-hover:bg-emerald-500/20"></div>
+            <div class="flex items-center gap-4 relative z-10">
+                <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                    <i class="fa-solid fa-boxes-packing"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Total Ingresos</div>
+                    <div class="text-2xl font-black text-white brand-font" id="kpi-entradas">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Consumo -->
+        <div class="glass p-5 rounded-2xl border-t-2 border-t-red-500 relative overflow-hidden group">
+            <div class="absolute right-0 top-0 w-24 h-24 bg-red-500/10 rounded-full blur-2xl -mr-10 -mt-10 transition group-hover:bg-red-500/20"></div>
+            <div class="flex items-center gap-4 relative z-10">
+                <div class="w-12 h-12 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center text-xl shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+                    <i class="fa-solid fa-people-carry-box"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Total Consumos</div>
+                    <div class="text-2xl font-black text-white brand-font" id="kpi-salidas">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Balance -->
+        <div class="glass p-5 rounded-2xl border-t-2 border-t-blue-500 relative overflow-hidden group">
+            <div class="absolute right-0 top-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -mr-10 -mt-10 transition group-hover:bg-blue-500/20"></div>
+            <div class="flex items-center gap-4 relative z-10">
+                <div class="w-12 h-12 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-xl shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+                    <i class="fa-solid fa-scale-balanced"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Balance Neto</div>
+                    <div class="text-2xl font-black text-white brand-font" id="kpi-balance">0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenido Principal -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Gráfica (2/3) -->
+        <div class="lg:col-span-2 glass rounded-2xl flex flex-col overflow-hidden">
+            <div class="px-6 py-4 border-b border-white/5 bg-slate-900/50 flex justify-between items-center">
+                <h3 class="text-sm font-black text-white brand-font flex items-center gap-2">
+                    <i class="fa-solid fa-chart-area text-emerald-400 text-xs"></i>
+                    Línea de Tiempo
+                </h3>
+            </div>
+            <div class="p-6 flex-1 min-h-[400px] relative">
+                <div id="chartLoader" class="absolute inset-0 bg-slate-900/80 z-10 flex flex-col items-center justify-center">
+                    <i class="fa-solid fa-spinner fa-spin text-3xl text-emerald-500 mb-3"></i>
+                    <span class="text-xs font-black uppercase tracking-widest text-emerald-400">Analizando datos...</span>
+                </div>
+                <canvas id="mainChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Ranking Materiales (1/3) -->
+        <div class="glass rounded-2xl flex flex-col overflow-hidden">
+            <div class="px-6 py-4 border-b border-white/5 bg-slate-900/50">
+                <h3 class="text-sm font-black text-white brand-font flex items-center gap-2">
+                    <i class="fa-solid fa-fire text-orange-400 text-xs"></i>
+                    Top Materiales (Mayor Consumo)
+                </h3>
+            </div>
+            <div class="flex-1 overflow-y-auto cscroll" style="max-height: 400px;">
+                <table class="w-full text-left text-xs whitespace-nowrap">
+                    <thead class="sticky top-0 bg-slate-900 shadow-md">
+                        <tr class="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                            <th class="px-5 py-3">Código / Material</th>
+                            <th class="px-5 py-3 text-right">Consumido</th>
+                        </tr>
+                    </thead>
+                    <tbody id="topTableBody">
+                        <tr><td colspan="2" class="text-center py-8 text-slate-500">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let chartInstance = null;
+
+    async function fetchData() {
+        // Mostrar loaders
+        document.getElementById('chartLoader').classList.remove('hidden');
+        document.getElementById('chartLoader').classList.add('flex');
+        
+        try {
+            const res = await fetch('/api/kpi-consumo');
+            const data = await res.json();
+            
+            if (data.error) throw new Error(data.error);
+            
+            procesarYRenderizar(data);
+        } catch (error) {
+            alert("Error al cargar los datos: " + error.message);
+        } finally {
+            document.getElementById('chartLoader').classList.add('hidden');
+            document.getElementById('chartLoader').classList.remove('flex');
+        }
+    }
+
+    function procesarYRenderizar(data) {
+        if (!data || data.length === 0) return;
+        
+        let totalEntradas = 0;
+        let totalSalidas = 0;
+        const dailyData = {};
+        const materialConsumo = {};
+
+        data.forEach(ev => {
+            // Totales
+            if (ev.cantidad > 0) totalEntradas += ev.cantidad;
+            else totalSalidas += Math.abs(ev.cantidad);
+
+            // Agrupación por día
+            const dateObj = new Date(ev.fecha);
+            const dayKey = dateObj.toLocaleDateString('es-PE');
+            if (!dailyData[dayKey]) dailyData[dayKey] = { consumo: 0, despacho: 0 };
+            
+            if (ev.cantidad > 0) {
+                dailyData[dayKey].despacho += ev.cantidad;
+            } else {
+                dailyData[dayKey].consumo += Math.abs(ev.cantidad);
+                
+                // Ranking de materiales
+                const matKey = `(AX-${ev.cod_material || 'N/A'}) ${ev.nombre_material || 'Desconocido'}`;
+                if (!materialConsumo[matKey]) materialConsumo[matKey] = 0;
+                materialConsumo[matKey] += Math.abs(ev.cantidad);
+            }
+        });
+
+        // Actualizar Tarjetas KPI
+        document.getElementById('kpi-entradas').textContent = totalEntradas.toLocaleString('es-PE', {maximumFractionDigits:1});
+        document.getElementById('kpi-salidas').textContent = totalSalidas.toLocaleString('es-PE', {maximumFractionDigits:1});
+        
+        const balance = totalEntradas - totalSalidas;
+        const balEl = document.getElementById('kpi-balance');
+        balEl.textContent = (balance > 0 ? '+' : '') + balance.toLocaleString('es-PE', {maximumFractionDigits:1});
+        if(balance < 0) {
+            balEl.classList.remove('text-white');
+            balEl.classList.add('text-red-400');
+        } else {
+            balEl.classList.remove('text-red-400');
+            balEl.classList.add('text-white');
+        }
+
+        // --- RENDER TOP MATERIALES ---
+        const topMaterials = Object.keys(materialConsumo)
+            .map(k => ({ nombre: k, cant: materialConsumo[k] }))
+            .sort((a, b) => b.cant - a.cant)
+            .slice(0, 15); // Top 15
+
+        let tableHtml = '';
+        topMaterials.forEach((m, idx) => {
+            tableHtml += `
+            <tr class="border-b border-white/5 hover:bg-white/5 transition group">
+                <td class="px-5 py-3">
+                    <div class="flex items-center gap-3">
+                        <span class="text-[10px] font-black ${idx<3 ? 'text-orange-400' : 'text-slate-500'}">#${idx+1}</span>
+                        <div class="truncate max-w-[180px] md:max-w-[220px]" title="${m.nombre}">
+                            <span class="text-xs font-semibold text-slate-200">${m.nombre}</span>
+                        </div>
+                    </div>
+                </td>
+                <td class="px-5 py-3 text-right font-black text-red-400 brand-font">
+                    ${m.cant.toLocaleString('es-PE', {maximumFractionDigits:1})} <span class="text-[9px] font-normal text-slate-500">u</span>
+                </td>
+            </tr>`;
+        });
+        document.getElementById('topTableBody').innerHTML = tableHtml || '<tr><td colspan="2" class="text-center py-8 text-slate-500">Sin consumos</td></tr>';
+
+        // --- RENDER CHART ---
+        const labels = Object.keys(dailyData).sort((a, b) => {
+            const [da, ma, ya] = a.split('/');
+            const [db, mb, yb] = b.split('/');
+            return new Date(ya, ma-1, da) - new Date(yb, mb-1, db);
+        });
+        
+        const consumoPoints = labels.map(l => dailyData[l].consumo);
+        const despachoPoints = labels.map(l => dailyData[l].despacho);
+        
+        if (chartInstance) chartInstance.destroy();
+        
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Reabastecimiento (Entradas)',
+                        data: despachoPoints,
+                        backgroundColor: 'rgba(52, 211, 153, 0.15)',
+                        borderColor: 'rgb(52, 211, 153)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: 'rgb(52, 211, 153)',
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    },
+                    {
+                        label: 'Consumo (Salidas)',
+                        data: consumoPoints,
+                        backgroundColor: 'rgba(248, 113, 113, 0.15)',
+                        borderColor: 'rgb(248, 113, 113)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: 'rgb(248, 113, 113)',
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    x: { ticks: { color: '#94a3b8', font: {size: 10} }, grid: { color: 'rgba(255,255,255,0.03)' } },
+                    y: { ticks: { color: '#94a3b8', font: {size: 10} }, grid: { color: 'rgba(255,255,255,0.03)' } }
+                },
+                plugins: {
+                    legend: { position: 'top', labels: { color: '#cbd5e1', usePointStyle: true, boxWidth: 8, font: { family: 'Outfit, sans-serif', size: 11 } } },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleColor: '#fff',
+                        bodyColor: '#cbd5e1',
+                        borderColor: 'rgba(56, 189, 248, 0.2)',
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 8
+                    }
+                }
+            }
+        });
+    }
+
+    // Inicializar
+    document.addEventListener("DOMContentLoaded", fetchData);
+</script>
+{% endblock %}

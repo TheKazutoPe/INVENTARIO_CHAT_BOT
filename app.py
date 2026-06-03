@@ -1531,7 +1531,7 @@ def despacho_masivo():
         if file.filename == '':
             return jsonify({'error': 'Nombre de archivo vacío'}), 400
 
-        df = pd.read_excel(file)
+        df = pd.read_excel(file, dtype=str)
         cols_upper = [str(c).upper().strip() for c in df.columns]
         df.columns = cols_upper
 
@@ -1575,7 +1575,7 @@ def despacho_masivo():
         # ── Resolver nombres desde catalogo_unificado ───────────────────
         # Recolectar todos los códigos AX únicos del Excel
         codigos_ax = list(set(
-            str(row[col_cod]).strip().lstrip('0')
+            str(row[col_cod]).strip()[:-2].lstrip('0') if str(row[col_cod]).strip().endswith('.0') else str(row[col_cod]).strip().lstrip('0')
             for _, row in df.iterrows()
             if pd.notna(row[col_cod]) and str(row[col_cod]).strip() not in ('', 'nan', 'None')
         ))
@@ -1612,7 +1612,9 @@ def despacho_masivo():
 
         for _, row in df.iterrows():
             bri  = str(row[col_bri]).upper().strip()
-            cod  = str(row[col_cod]).strip().lstrip('0')
+            raw_cod = str(row[col_cod]).strip()
+            if raw_cod.endswith('.0'): raw_cod = raw_cod[:-2]
+            cod  = raw_cod.lstrip('0')
             cant = float(row[col_cant])
 
             if not bri or not cod or cant <= 0:
